@@ -8,8 +8,10 @@ import com.lightdeploy.backend.entity.DeployTask;
 import com.lightdeploy.backend.entity.DeployProfile;
 import com.lightdeploy.backend.entity.Server;
 import com.lightdeploy.backend.entity.User;
+import com.lightdeploy.backend.util.PathUtils;
 import com.lightdeploy.backend.websocket.DeployLogWebSocketHandler;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -47,8 +49,14 @@ public class DeployEngineService {
     @Autowired
     private DeployLogWebSocketHandler logWebSocketHandler;
 
-    @org.springframework.beans.factory.annotation.Value("${gitlab.url}")
+    @Value("${gitlab.url}")
     private String gitlabUrl;
+
+    @Value("${app.workspace-dir}")
+    private String workspaceDir;
+
+    @Value("${app.artifacts-dir}")
+    private String artifactsDir;
 
     @Async
     public void executeDeploy(DeployTask task, DeployRecord record) {
@@ -106,7 +114,7 @@ public class DeployEngineService {
                 // Save artifacts if buildOutputDir is configured
                 if (buildOutputDir != null && !buildOutputDir.trim().isEmpty()) {
                     sendLog(taskIdStr, ">>> 1.1 Saving Build Artifacts from " + buildOutputDir);
-                    String artifactRoot = System.getProperty("user.dir") + "/.artifacts/" + record.getId();
+                    String artifactRoot = PathUtils.resolve(artifactsDir) + "/" + record.getId();
                     File artifactDir = new File(artifactRoot);
                     if (!artifactDir.exists()) {
                         artifactDir.mkdirs();
@@ -327,8 +335,7 @@ public class DeployEngineService {
         }
 
         // 2. Determine workspace directory
-        // Use user.dir instead of user.home to avoid sandbox permission issues during local development
-        String workspaceRoot = System.getProperty("user.dir") + "/.workspace";
+        String workspaceRoot = PathUtils.resolve(workspaceDir);
         File rootDir = new File(workspaceRoot);
         if (!rootDir.exists()) {
             boolean created = rootDir.mkdirs();

@@ -55,7 +55,7 @@ Default credentials in `application.yml`: root/123456, database `light_deploy`.
 - **OAuth frontend redirect**: `OAuth2AuthenticationSuccessHandler.java:41` redirects to `{app.frontend-url}/login/success`. Default is `http://localhost:3000`, override via `APP_FRONTEND_URL` env var for Docker.
 - **JWT secret is hardcoded** in `JwtUtils.java:15` - must be externalized for production.
 - **application.yml uses env var placeholders** (e.g. `${GITLAB_URL:...}`, `${GITLAB_CLIENT_ID:...}`). Dev defaults are baked in; override via env vars in Docker.
-- **Deploy engine uses `user.dir`** for workspace (`.workspace/`) and artifacts (`.artifacts/`). These paths depend on where the backend process starts. In Docker they land inside the container - bind-mount or change config if persistence is needed.
+- **App data paths** (workspace, artifacts, SSH keys) are configurable via `application.yml` properties or env vars: `APP_WORKSPACE_DIR`, `APP_ARTIFACTS_DIR`, `APP_SSH_DIR`. Defaults are `./.workspace`, `./.artifacts`, `~/.ssh` respectively. Docker volumes are mounted at `/data/workspace`, `/data/artifacts`, `/data/.ssh` in `docker-compose.yml`.
 - **`@EnableAsync`** on `BackendApplication` - deploy tasks execute asynchronously via `DeployEngineService.executeDeploy()`.
 - **MyBatis-Plus SQL logging** is enabled (`StdOutImpl` in `application.yml`). Remove for production.
 - **Logical delete** is configured globally (`deleted` field, 0/1). All entity queries auto-filter deleted records.
@@ -87,6 +87,9 @@ GITLAB_CLIENT_ID=xxx
 GITLAB_CLIENT_SECRET=xxx
 GITLAB_URL=https://gitlab.your-company.com    # omit for gitlab.com
 APP_FRONTEND_URL=http://your-domain.com       # override for OAuth redirect
+# APP_WORKSPACE_DIR=/data/workspace          # default (mounted as docker volume)
+# APP_ARTIFACTS_DIR=/data/artifacts          # default (mounted as docker volume)
+# APP_SSH_DIR=/data/.ssh                     # default (mounted as docker volume)
 EOF
 
 docker compose up -d
@@ -104,6 +107,9 @@ docker compose down -v
 | `GITLAB_CLIENT_SECRET` | GitLab OAuth application secret |
 | `GITLAB_URL` | GitLab instance URL (default `https://gitlab.com`) |
 | `APP_FRONTEND_URL` | Frontend URL for OAuth redirect (default `http://localhost:3000`) |
+| `APP_WORKSPACE_DIR` | Workspace directory for cloned repos (default `./.workspace`) |
+| `APP_ARTIFACTS_DIR` | Build artifacts directory (default `./.artifacts`) |
+| `APP_SSH_DIR` | SSH keys directory (default `~/.ssh`) |
 
 ### Register OAuth redirect URI in GitLab
 

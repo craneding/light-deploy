@@ -3,6 +3,9 @@ gitlab:
 
 app:
   frontend-url: ${APP_FRONTEND_URL:http://localhost:3000}
+  workspace-dir: ${APP_WORKSPACE_DIR:./.workspace}
+  artifacts-dir: ${APP_ARTIFACTS_DIR:./.artifacts}
+  ssh-dir: ${APP_SSH_DIR:~/.ssh}
 
 server:
   port: 8080

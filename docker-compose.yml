@@ -15,5 +15,17 @@ services:
       APP_FRONTEND_URL: ${APP_FRONTEND_URL:-http://localhost/light-deploy}
       APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost/light-deploy/api}
       JAVA_OPTS: -Dserver.forward-headers-strategy=framework
+      APP_WORKSPACE_DIR: /data/workspace
+      APP_ARTIFACTS_DIR: /data/artifacts
+      APP_SSH_DIR: /data/.ssh
     ports:
       - "8080:8080"
+    volumes:
+      - workspace_data:/data/workspace
+      - artifacts_data:/data/artifacts
+      - ssh_data:/data/.ssh
+
+volumes:
+  workspace_data:
+  artifacts_data:
+  ssh_data:

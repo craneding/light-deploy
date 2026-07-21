@@ -8,7 +8,9 @@ import com.jcraft.jsch.KeyPair;
 import com.lightdeploy.backend.entity.Server;
 import com.lightdeploy.backend.mapper.ServerMapper;
 import com.lightdeploy.backend.service.IServerService;
+import com.lightdeploy.backend.util.PathUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -20,6 +22,9 @@ import java.util.Properties;
 @Slf4j
 @Service
 public class ServerServiceImpl extends ServiceImpl<ServerMapper, Server> implements IServerService {
+
+    @Value("${app.ssh-dir}")
+    private String sshDir;
 
     @Override
     public boolean testSshConnection(Server server) {
@@ -62,21 +67,20 @@ public class ServerServiceImpl extends ServiceImpl<ServerMapper, Server> impleme
         ChannelExec channel = null;
         try {
             // 1. Ensure local SSH keys exist
-            String userHome = System.getProperty("user.home");
-            File sshDir = new File(userHome, ".ssh");
-            if (!sshDir.exists()) {
-                sshDir.mkdirs();
+            File sshDirFile = new File(PathUtils.resolve(sshDir));
+            if (!sshDirFile.exists()) {
+                sshDirFile.mkdirs();
             }
 
-            File privKeyFile = new File(sshDir, "id_rsa");
-            File pubKeyFile = new File(sshDir, "id_rsa.pub");
+            File privKeyFile = new File(sshDirFile, "id_rsa");
+            File pubKeyFile = new File(sshDirFile, "id_rsa.pub");
 
             if (!privKeyFile.exists() || !pubKeyFile.exists()) {
                 KeyPair kpair = KeyPair.genKeyPair(jsch, KeyPair.RSA, 2048);
                 kpair.writePrivateKey(privKeyFile.getAbsolutePath());
                 kpair.writePublicKey(pubKeyFile.getAbsolutePath(), "light-deploy@local");
                 kpair.dispose();
-                log.info("Generated new RSA key pair in {}", sshDir.getAbsolutePath());
+                log.info("Generated new RSA key pair in {}", sshDirFile.getAbsolutePath());
             }
 
             // 2. Read public key

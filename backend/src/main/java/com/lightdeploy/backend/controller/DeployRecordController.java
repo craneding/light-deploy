@@ -3,7 +3,9 @@ package com.lightdeploy.backend.controller;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.lightdeploy.backend.entity.DeployRecord;
 import com.lightdeploy.backend.service.IDeployRecordService;
+import com.lightdeploy.backend.util.PathUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -28,6 +30,9 @@ public class DeployRecordController {
     @Autowired
     private IDeployRecordService deployRecordService;
 
+    @Value("${app.artifacts-dir}")
+    private String artifactsDir;
+
     @GetMapping
     public ResponseEntity<?> getAll(@RequestParam(required = false) Integer taskId) {
         if (taskId != null) {
@@ -45,7 +50,7 @@ public class DeployRecordController {
 
     @GetMapping("/{id}/artifacts")
     public ResponseEntity<?> listArtifacts(@PathVariable Integer id) {
-        String artifactRoot = System.getProperty("user.dir") + "/.artifacts/" + id;
+        String artifactRoot = PathUtils.resolve(artifactsDir) + "/" + id;
         Path rootPath = Paths.get(artifactRoot);
         List<String> files = new ArrayList<>();
         
@@ -63,7 +68,7 @@ public class DeployRecordController {
 
     @GetMapping("/{id}/artifacts/download")
     public ResponseEntity<Resource> downloadArtifact(@PathVariable Integer id, @RequestParam String filePath) {
-        String artifactRoot = System.getProperty("user.dir") + "/.artifacts/" + id;
+        String artifactRoot = PathUtils.resolve(artifactsDir) + "/" + id;
         Path fileToDownload = Paths.get(artifactRoot, filePath).normalize();
         
         // Security check to prevent directory traversal

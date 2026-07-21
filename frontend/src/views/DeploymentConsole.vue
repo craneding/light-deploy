@@ -104,16 +104,15 @@ const connectWebSocket = async () => {
 
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   let host = window.location.host
-  let basePath = '/api'
-  
+  let basePath = import.meta.env.VITE_API_BASE_URL || '/light-deploy/api'
+
   if (import.meta.env.VITE_API_BASE_URL) {
     const apiBaseUrl = new URL(import.meta.env.VITE_API_BASE_URL, window.location.origin)
     host = apiBaseUrl.host
     basePath = apiBaseUrl.pathname === '/' ? '' : apiBaseUrl.pathname
   } else if (import.meta.env.DEV) {
-    // If no VITE_API_BASE_URL is set but we are in DEV, fallback to local backend for WS
     host = 'localhost:8080'
-    basePath = ''
+    basePath = '/api'
   }
   
   // Clean up any trailing slashes from basePath

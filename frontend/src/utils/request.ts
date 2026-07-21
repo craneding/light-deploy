@@ -34,7 +34,7 @@ request.interceptors.response.use(
         console.error('401 Error Intercepted in response! URL:', response.config.url, 'Data:', res);
         const userStore = useUserStore()
         userStore.logout()
-        window.location.href = '/login'
+        window.location.href = '/light-deploy/login'
         return Promise.reject(new Error(res.message || 'Unauthorized'))
       }
       ElMessage.error(res.message || 'Error')
@@ -60,7 +60,7 @@ request.interceptors.response.use(
       console.error('401 Error Intercepted! URL:', error.response?.config?.url, 'Data:', responseData);
       const userStore = useUserStore()
       userStore.logout()
-      window.location.href = '/login'
+      window.location.href = '/light-deploy/login'
     } else {
       const errorMsg = typeof responseData === 'string' ? responseData : (responseData?.message || error.message || 'Request Error');
       ElMessage.error(errorMsg)

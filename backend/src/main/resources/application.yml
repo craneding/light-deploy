@@ -1,0 +1,49 @@
+gitlab:
+  url: ${GITLAB_URL:https://git.oa.chexiaoy.com}
+
+app:
+  frontend-url: ${APP_FRONTEND_URL:http://localhost:3000}
+
+server:
+  port: 8080
+  forward-headers-strategy: framework
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: light-deploy-backend
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/light_deploy?useUnicode=true&characterEncoding=utf-8&serverTimezone=UTC
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:123456}
+  security:
+    oauth2:
+      client:
+        registration:
+          gitlab:
+            client-id: ${GITLAB_CLIENT_ID:0b5d14d4344905074912f2c5cb731b1d3161de96512f84324bb2c26e5ed85364}
+            client-secret: ${GITLAB_CLIENT_SECRET:22e9abbcca150bbda9f2fc3be7a3c54c5b000647410f52f75a25802a57005f2a}
+            client-authentication-method: client_secret_post
+            authorization-grant-type: authorization_code
+            redirect-uri: "${APP_PUBLIC_URL:{baseUrl}}/login/oauth2/code/{registrationId}"
+            scope: read_api, read_user, api
+        provider:
+          gitlab:
+            authorization-uri: ${gitlab.url}/oauth/authorize
+            token-uri: ${gitlab.url}/oauth/token
+            user-info-uri: ${gitlab.url}/api/v4/user
+            user-name-attribute: id
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0

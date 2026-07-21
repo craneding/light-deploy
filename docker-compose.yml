@@ -1,0 +1,19 @@
+services:
+
+  backend:
+    image: light-deploy-backend
+    container_name: light-deploy-backend
+    restart: unless-stopped
+    environment:
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_PORT: ${MYSQL_PORT:-3306}
+      MYSQL_USER: ${MYSQL_USER:-root}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      GITLAB_URL: ${GITLAB_URL:-https://gitlab.com}
+      GITLAB_CLIENT_ID: ${GITLAB_CLIENT_ID}
+      GITLAB_CLIENT_SECRET: ${GITLAB_CLIENT_SECRET}
+      APP_FRONTEND_URL: ${APP_FRONTEND_URL:-http://localhost/light-deploy}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost/light-deploy/api}
+      JAVA_OPTS: -Dserver.forward-headers-strategy=framework
+    ports:
+      - "8080:8080"

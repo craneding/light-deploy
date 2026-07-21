@@ -1,0 +1,17 @@
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Deploy workspace and artifacts
+.workspace/
+.artifacts/
+
+# Docker build artifacts
+light-deploy-backend.tar.gz
+
+# Environment files
+.env
+.env.local

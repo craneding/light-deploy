@@ -104,6 +104,7 @@
         
         <el-form-item label="构建脚本" prop="buildScript">
           <el-input v-model="form.buildScript" type="textarea" :rows="3" placeholder="例如: npm install && npm run build" />
+          <div class="form-tip">如需切换 Node/JDK/Maven 版本，在脚本前添加 <code>. /usr/local/nvm/nvm.sh && nvm use 22 && source /usr/local/sdkman/bin/sdkman-init.sh && sdk use java 11.0.12-tem && sdk use maven 3.8.8 &&</code></div>
         </el-form-item>
         <el-form-item label="构建后产物" prop="buildOutputDir">
           <el-input v-model="form.buildOutputDir" placeholder="例如: dist 或者 target/app.jar (构建成功后供下载)" />
@@ -235,6 +236,7 @@
                     placeholder="例如: npm install && npm run build" 
                     class="code-input"
                   />
+                  <div class="form-tip">如需切换 Node/JDK/Maven 版本，在脚本前添加 <code>. /usr/local/nvm/nvm.sh && nvm use 22 && source /usr/local/sdkman/bin/sdkman-init.sh && sdk use java 11.0.12-tem && sdk use maven 3.8.8 &&</code></div>
                 </el-form-item>
               </el-col>
               <el-col :span="24">
@@ -874,6 +876,19 @@ onMounted(() => {
 
 .full-width-btn {
   width: 100%;
+}
+
+.form-tip {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  margin-top: 4px;
+}
+.form-tip code {
+  background: var(--el-fill-color-light);
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 12px;
 }
 
 .flex-1 {

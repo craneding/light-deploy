@@ -193,6 +193,9 @@
       width="600px"
     >
       <div v-loading="artifactsLoading" class="artifacts-container">
+        <div v-if="artifactFiles.length > 0" style="margin-bottom: 12px; text-align: right;">
+          <el-button type="primary" @click="downloadAllArtifacts">下载全部 (zip)</el-button>
+        </div>
         <el-table :data="artifactFiles" style="width: 100%" v-if="artifactFiles.length > 0">
           <el-table-column label="文件名" prop="name">
             <template #default="scope">
@@ -504,6 +507,13 @@ const downloadArtifact = (filename: string) => {
   if (!currentRecordId.value) return
   const token = localStorage.getItem('jwt_token') || ''
   const url = `/api/deploy-records/${currentRecordId.value}/artifacts/download?filePath=${encodeURIComponent(filename)}&token=${token}`
+  window.open(url, '_blank')
+}
+
+const downloadAllArtifacts = () => {
+  if (!currentRecordId.value) return
+  const token = localStorage.getItem('jwt_token') || ''
+  const url = `/api/deploy-records/${currentRecordId.value}/artifacts/download-all?token=${token}`
   window.open(url, '_blank')
 }
 

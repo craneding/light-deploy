@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.lightdeploy.backend.entity.DeployRecord;
 import com.lightdeploy.backend.service.IDeployRecordService;
 import com.lightdeploy.backend.util.PathUtils;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
@@ -22,6 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @RestController
 @RequestMapping("/deploy-records")
@@ -71,7 +74,6 @@ public class DeployRecordController {
         String artifactRoot = PathUtils.resolve(artifactsDir) + "/" + id;
         Path fileToDownload = Paths.get(artifactRoot, filePath).normalize();
         
-        // Security check to prevent directory traversal
         if (!fileToDownload.startsWith(Paths.get(artifactRoot).normalize())) {
             return ResponseEntity.badRequest().build();
         }
@@ -86,5 +88,35 @@ public class DeployRecordController {
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.getName() + "\"")
                 .body(resource);
+    }
+
+    @GetMapping("/{id}/artifacts/download-all")
+    public void downloadAllArtifacts(@PathVariable Integer id, HttpServletResponse response) throws IOException {
+        String artifactRoot = PathUtils.resolve(artifactsDir) + "/" + id;
+        Path rootPath = Paths.get(artifactRoot);
+
+        if (!Files.exists(rootPath)) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND);
+            return;
+        }
+
+        response.setContentType("application/zip");
+        response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"artifacts-" + id + ".zip\"");
+
+        try (ZipOutputStream zos = new ZipOutputStream(response.getOutputStream())) {
+            try (Stream<Path> paths = Files.walk(rootPath)) {
+                paths.filter(Files::isRegularFile).forEach(path -> {
+                    String relativePath = rootPath.relativize(path).toString().replace('\\', '/');
+                    ZipEntry entry = new ZipEntry(relativePath);
+                    try {
+                        zos.putNextEntry(entry);
+                        Files.copy(path, zos);
+                        zos.closeEntry();
+                    } catch (IOException e) {
+                        throw new RuntimeException("Failed to zip artifact: " + relativePath, e);
+                    }
+                });
+            }
+        }
     }
 }

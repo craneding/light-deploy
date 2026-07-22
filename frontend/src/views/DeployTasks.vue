@@ -196,15 +196,34 @@
         <div v-if="artifactFiles.length > 0" style="margin-bottom: 12px; text-align: right;">
           <el-button type="primary" @click="downloadAllArtifacts">下载全部 (zip)</el-button>
         </div>
-        <el-table :data="artifactFiles" style="width: 100%" v-if="artifactFiles.length > 0">
-          <el-table-column label="文件名" prop="name">
+        <el-table
+          v-if="artifactFiles.length > 0"
+          :data="artifactTreeData"
+          row-key="fullPath"
+          :tree-props="{ children: 'children' }"
+          default-expand-all
+          style="width: 100%"
+        >
+          <el-table-column label="文件名" prop="name" min-width="300">
             <template #default="scope">
-              <el-icon><Document /></el-icon> {{ scope.row.name }}
+              <el-icon v-if="scope.row.isDir">
+                <FolderOpened />
+              </el-icon>
+              <el-icon v-else>
+                <Document />
+              </el-icon>
+              <span style="margin-left: 6px;">{{ scope.row.name }}</span>
             </template>
           </el-table-column>
           <el-table-column label="操作" width="100">
             <template #default="scope">
-              <el-button size="small" type="primary" link @click="downloadArtifact(scope.row.name)">下载</el-button>
+              <el-button
+                v-if="!scope.row.isDir"
+                size="small"
+                type="primary"
+                link
+                @click="downloadArtifact(scope.row.fullPath)"
+              >下载</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -215,9 +234,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, Document, Search } from '@element-plus/icons-vue'
+import { Plus, Document, Search, FolderOpened } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import request from '../utils/request'
@@ -234,6 +253,38 @@ const artifactsDialogVisible = ref(false)
 const artifactsLoading = ref(false)
 const artifactFiles = ref<{name: string}[]>([])
 const currentRecordId = ref<number | null>(null)
+
+interface TreeNode {
+  name: string
+  fullPath: string
+  children?: TreeNode[]
+  isDir?: boolean
+}
+
+function buildFileTree(files: {name: string}[]): TreeNode[] {
+  const root: TreeNode[] = []
+  for (const file of files) {
+    const parts = file.name.split('/')
+    let current = root
+    let currentPath = ''
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i]
+      currentPath = currentPath ? currentPath + '/' + part : part
+      const isDir = i < parts.length - 1
+      let existing = current.find(n => n.name === part && n.isDir === isDir)
+      if (!existing) {
+        existing = { name: part, fullPath: currentPath, isDir, children: isDir ? [] : undefined }
+        current.push(existing)
+      }
+      if (isDir && existing.children) {
+        current = existing.children
+      }
+    }
+  }
+  return root
+}
+
+const artifactTreeData = computed(() => buildFileTree(artifactFiles.value))
 const currentErrorLogs = ref<string>('')
 const submitting = ref(false)
 const formRef = ref<FormInstance>()
@@ -621,5 +672,10 @@ onMounted(() => {
 .status-tag {
   font-weight: 600;
   padding: 0 12px;
+}
+
+.artifacts-container {
+  max-height: 400px;
+  overflow-y: auto;
 }
 </style>

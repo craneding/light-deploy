@@ -18,14 +18,17 @@ services:
       APP_WORKSPACE_DIR: /data/workspace
       APP_ARTIFACTS_DIR: /data/artifacts
       APP_SSH_DIR: /data/.ssh
+      APP_LOG_DIR: /data/logs
     ports:
       - "8080:8080"
     volumes:
       - workspace_data:/data/workspace
       - artifacts_data:/data/artifacts
       - ssh_data:/data/.ssh
+      - logs_data:/data/logs
 
 volumes:
   workspace_data:
   artifacts_data:
   ssh_data:
+  logs_data:

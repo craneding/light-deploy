@@ -6,6 +6,7 @@ app:
   workspace-dir: ${APP_WORKSPACE_DIR:./.workspace}
   artifacts-dir: ${APP_ARTIFACTS_DIR:./.artifacts}
   ssh-dir: ${APP_SSH_DIR:~/.ssh}
+  log-dir: ${APP_LOG_DIR:./logs}
 
 server:
   port: 8080
@@ -43,7 +44,6 @@ mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   global-config:
     db-config:
       id-type: auto

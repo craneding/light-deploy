@@ -15,6 +15,7 @@ import com.lightdeploy.backend.service.IDeployProfileService;
 import com.lightdeploy.backend.entity.User;
 import com.lightdeploy.backend.mapper.UserMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
@@ -184,7 +185,27 @@ public class DeployTaskController {
             deployTaskService.save(task);
         }
 
-        // 2. Create execution record
+        // 2. Check if any task is still running for the same GitLab project
+        Project project = projectService.getById(request.getProjectId());
+        if (project != null && project.getGitlabProjectId() != null) {
+            List<Project> sameGitlabProjects = projectService.list(
+                    new QueryWrapper<Project>().eq("gitlab_project_id", project.getGitlabProjectId()));
+            List<Integer> sameProjectIds = sameGitlabProjects.stream().map(Project::getId).collect(Collectors.toList());
+            List<DeployTask> sameTasks = deployTaskService.list(
+                    new QueryWrapper<DeployTask>().in("project_id", sameProjectIds));
+            if (!sameTasks.isEmpty()) {
+                List<Integer> sameTaskIds = sameTasks.stream().map(DeployTask::getId).collect(Collectors.toList());
+                long runningCount = deployRecordService.count(
+                        new QueryWrapper<DeployRecord>().in("task_id", sameTaskIds)
+                                .in("status", "PENDING", "RUNNING"));
+                if (runningCount > 0) {
+                    return ResponseEntity.status(HttpStatus.CONFLICT)
+                            .body("该项目关联的 GitLab 项目已有正在执行中的部署任务，请等待完成后再试");
+                }
+            }
+        }
+
+        // 3. Create execution record
         DeployRecord record = new DeployRecord();
         record.setTaskId(task.getId());
         // 获取当前登录用户ID

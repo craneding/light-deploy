@@ -83,6 +83,9 @@ public class ServerServiceImpl extends ServiceImpl<ServerMapper, Server> impleme
                 log.info("Generated new RSA key pair in {}", sshDirFile.getAbsolutePath());
             }
 
+            // Ensure private key has correct permissions (SSH requires 0600)
+            Runtime.getRuntime().exec("chmod 600 " + privKeyFile.getAbsolutePath()).waitFor();
+
             // 2. Read public key
             String pubKey = new String(Files.readAllBytes(Paths.get(pubKeyFile.getAbsolutePath()))).trim();
 

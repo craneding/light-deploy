@@ -25,6 +25,10 @@ RUN /bin/bash -c 'source "$SDKMAN_DIR/bin/sdkman-init.sh" && \
     sdk default maven 3.9.9 && \
     ln -sf "$SDKMAN_DIR/candidates/maven/current/bin/mvn" /usr/local/bin/mvn'
 
+# Pre-install Java 25 (for projects that require it)
+RUN /bin/bash -c 'source "$SDKMAN_DIR/bin/sdkman-init.sh" && \
+    sdk install java 25.0.3-tem'
+
 # Copy Node.js 20 from official image (no tar extraction needed)
 COPY --from=node20 /usr/local/bin/node /usr/local/bin/
 COPY --from=node20 /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm

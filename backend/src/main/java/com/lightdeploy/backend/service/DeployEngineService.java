@@ -58,6 +58,9 @@ public class DeployEngineService {
     @Value("${app.artifacts-dir}")
     private String artifactsDir;
 
+    @Value("${app.ssh-dir}")
+    private String sshDir;
+
     @Async
     public void executeDeploy(DeployTask task, DeployRecord record) {
         String taskIdStr = String.valueOf(record.getId());
@@ -164,7 +167,10 @@ public class DeployEngineService {
 
                 // Create rsync command. We now rely on passwordless SSH.
                 int port = server.getPort() != null ? server.getPort() : 22;
-                String sshCmd = "ssh -p " + port + " -o StrictHostKeyChecking=no";
+                String keyPath = PathUtils.resolve(sshDir) + "/id_rsa";
+                // Ensure private key has correct permissions (SSH requires 0600)
+                executeLocalCommand("chmod 600 " + keyPath, taskIdStr, record, workspaceDir);
+                String sshCmd = "ssh -p " + port + " -o StrictHostKeyChecking=no -i " + keyPath;
                 String rsyncCmd = String.format("rsync -avz --delete -e \"%s\" %s %s@%s:%s",
                         sshCmd, sourcePath, server.getUsername(), server.getIp(), deployDir);
                 

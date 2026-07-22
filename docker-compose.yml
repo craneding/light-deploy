@@ -19,6 +19,9 @@ services:
       APP_ARTIFACTS_DIR: /data/artifacts
       APP_SSH_DIR: /data/.ssh
       APP_LOG_DIR: /data/logs
+      APP_SCP_HOST: ${APP_SCP_HOST}
+      APP_SCP_PORT: ${APP_SCP_PORT:-22}
+      APP_HOST_DATA_DIR: ${APP_HOST_DATA_DIR:-/opt/light-deploy/data}
     ports:
       - "8080:8080"
     volumes:

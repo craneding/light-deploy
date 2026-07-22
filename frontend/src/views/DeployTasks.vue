@@ -190,9 +190,19 @@
     <el-dialog
       v-model="artifactsDialogVisible"
       title="构建产物"
-      width="600px"
+      width="660px"
     >
       <div v-loading="artifactsLoading" class="artifacts-container">
+        <div v-if="scpInfo && artifactFiles.length > 0" class="scp-section">
+          <div class="scp-header">
+            <span class="scp-label">SCP 下载命令</span>
+            <el-button size="small" type="primary" plain @click="copyScpCommand" class="soft-btn">
+              <template #icon><el-icon><CopyDocument /></el-icon></template>
+              复制命令
+            </el-button>
+          </div>
+          <pre class="scp-command">{{ scpCommand }}</pre>
+        </div>
         <div v-if="artifactFiles.length > 0" style="margin-bottom: 12px; text-align: right;">
           <el-button type="primary" @click="downloadAllArtifacts">下载全部 (zip)</el-button>
         </div>
@@ -236,7 +246,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, Document, Search, FolderOpened } from '@element-plus/icons-vue'
+import { Plus, Document, Search, FolderOpened, CopyDocument } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import request from '../utils/request'
@@ -253,6 +263,22 @@ const artifactsDialogVisible = ref(false)
 const artifactsLoading = ref(false)
 const artifactFiles = ref<{name: string}[]>([])
 const currentRecordId = ref<number | null>(null)
+
+interface ScpInfo {
+  host: string
+  port: string
+  hostDataDir: string
+  artifactId: number
+}
+
+const scpInfo = ref<ScpInfo | null>(null)
+const scpCommand = computed(() => {
+  if (!scpInfo.value) return ''
+  const { host, port, hostDataDir, artifactId } = scpInfo.value
+  const remotePath = `${hostDataDir}/artifacts/${artifactId}/`
+  const portFlag = port !== '22' ? ` -P ${port}` : ''
+  return `scp${portFlag} -r ${host}:${remotePath} .`
+})
 
 interface TreeNode {
   name: string
@@ -542,11 +568,19 @@ const viewArtifacts = async (row: DeployTask) => {
   artifactsDialogVisible.value = true
   artifactsLoading.value = true
   artifactFiles.value = []
-  
+  scpInfo.value = null
+
   try {
     const res: any = await request.get(`/deploy-records/${row.id}/artifacts`)
-    const files = res.data || res || []
-    artifactFiles.value = files.map((f: string) => ({ name: f }))
+    const data = res.data || res
+    if (Array.isArray(data)) {
+      artifactFiles.value = data.map((f: string) => ({ name: f }))
+    } else {
+      artifactFiles.value = (data.files || []).map((f: string) => ({ name: f }))
+      if (data.scp) {
+        scpInfo.value = data.scp as ScpInfo
+      }
+    }
   } catch (error: any) {
     ElMessage.error(error.message || '获取构建产物失败')
   } finally {
@@ -566,6 +600,24 @@ const downloadAllArtifacts = () => {
   const token = localStorage.getItem('jwt_token') || ''
   const url = `/api/deploy-records/${currentRecordId.value}/artifacts/download-all?token=${token}`
   window.open(url, '_blank')
+}
+
+const copyScpCommand = () => {
+  const text = scpCommand.value
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  try {
+    document.execCommand('copy')
+    ElMessage.success('SCP 命令已复制到剪贴板')
+  } catch {
+    ElMessage.error('复制失败，请手动选择复制')
+  } finally {
+    document.body.removeChild(textarea)
+  }
 }
 
 onMounted(() => {
@@ -675,7 +727,43 @@ onMounted(() => {
 }
 
 .artifacts-container {
-  max-height: 400px;
+  max-height: 500px;
   overflow-y: auto;
+}
+
+.scp-section {
+  background-color: #F3F4F6;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.scp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.scp-label {
+  font-weight: 600;
+  font-size: 13px;
+  color: #374151;
+}
+
+.scp-command {
+  background-color: #1e1e1e;
+  color: #e5e5e5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 12px;
+  border-radius: 6px;
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: all;
 }
 </style>

@@ -7,6 +7,9 @@ app:
   artifacts-dir: ${APP_ARTIFACTS_DIR:./.artifacts}
   ssh-dir: ${APP_SSH_DIR:~/.ssh}
   log-dir: ${APP_LOG_DIR:./logs}
+  scp-host: ${APP_SCP_HOST:}
+  scp-port: ${APP_SCP_PORT:22}
+  host-data-dir: ${APP_HOST_DATA_DIR:/opt/light-deploy/data}
 
 server:
   port: 8080

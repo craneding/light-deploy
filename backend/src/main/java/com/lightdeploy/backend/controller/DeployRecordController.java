@@ -12,6 +12,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.File;
@@ -20,7 +21,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -35,6 +38,15 @@ public class DeployRecordController {
 
     @Value("${app.artifacts-dir}")
     private String artifactsDir;
+
+    @Value("${app.scp-host:}")
+    private String scpHost;
+
+    @Value("${app.scp-port:22}")
+    private String scpPort;
+
+    @Value("${app.host-data-dir:/opt/light-deploy/data}")
+    private String hostDataDir;
 
     @GetMapping
     public ResponseEntity<?> getAll(@RequestParam(required = false) Integer taskId) {
@@ -66,7 +78,20 @@ public class DeployRecordController {
                 return ResponseEntity.internalServerError().body("Error reading artifacts: " + e.getMessage());
             }
         }
-        return ResponseEntity.ok(files);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("files", files);
+
+        if (StringUtils.hasText(scpHost)) {
+            Map<String, Object> scp = new HashMap<>();
+            scp.put("host", scpHost);
+            scp.put("port", scpPort);
+            scp.put("hostDataDir", hostDataDir);
+            scp.put("artifactId", id);
+            result.put("scp", scp);
+        }
+
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/{id}/artifacts/download")

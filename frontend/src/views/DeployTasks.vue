@@ -18,6 +18,10 @@
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
+        <el-button size="large" @click="loadTasks" :loading="loading" class="action-btn">
+          <template #icon><el-icon><Refresh /></el-icon></template>
+          刷新
+        </el-button>
         <el-button type="primary" size="large" @click="handleCreate" class="action-btn">
           <template #icon><el-icon><Plus /></el-icon></template>
           新建任务
@@ -246,7 +250,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, Document, Search, FolderOpened, CopyDocument } from '@element-plus/icons-vue'
+import { Plus, Document, Search, FolderOpened, CopyDocument, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import request from '../utils/request'

@@ -254,6 +254,7 @@ import { Plus, Document, Search, FolderOpened, CopyDocument, Refresh } from '@el
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import request from '../utils/request'
+import { getItem } from '../utils/storage'
 import { fetchTasks, createTask, stopTask, type DeployTask } from '../api/task'
 import { fetchGitlabBranches, fetchGitlabTags, fetchGitlabCommits } from '../api/gitlab'
 
@@ -594,14 +595,14 @@ const viewArtifacts = async (row: DeployTask) => {
 
 const downloadArtifact = (filename: string) => {
   if (!currentRecordId.value) return
-  const token = localStorage.getItem('jwt_token') || ''
+  const token = getItem<string>('jwt_token') || ''
   const url = `/api/deploy-records/${currentRecordId.value}/artifacts/download?filePath=${encodeURIComponent(filename)}&token=${token}`
   window.open(url, '_blank')
 }
 
 const downloadAllArtifacts = () => {
   if (!currentRecordId.value) return
-  const token = localStorage.getItem('jwt_token') || ''
+  const token = getItem<string>('jwt_token') || ''
   const url = `/api/deploy-records/${currentRecordId.value}/artifacts/download-all?token=${token}`
   window.open(url, '_blank')
 }

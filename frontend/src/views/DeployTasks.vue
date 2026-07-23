@@ -66,15 +66,16 @@
             <span>{{ scope.row.operator || '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="耗时" min-width="100">
+        <el-table-column label="耗时" min-width="180">
           <template #default="scope">
-            <span>{{ calculateDuration(scope.row.startTime, scope.row.endTime) }}</span>
+            <span class="nowrap">{{ calculateDuration(scope.row.startTime, scope.row.endTime) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" min-width="180" />
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="310" fixed="right">
           <template #default="scope">
             <el-button size="small" type="primary" plain class="soft-btn" @click="viewConsole(scope.row.id)">控制台</el-button>
+            <el-button size="small" plain class="soft-btn" @click="quickDeploy(scope.row)">快速部署</el-button>
             <el-button v-if="scope.row.status === 'SUCCESS'" size="small" type="success" plain class="soft-btn" @click="viewArtifacts(scope.row)">产物</el-button>
             <el-button v-if="scope.row.status === 'FAILED'" size="small" type="warning" plain class="soft-btn" @click="viewErrorLogs(scope.row)">错误</el-button>
             <el-button v-if="scope.row.status === 'RUNNING'" size="small" type="danger" plain class="soft-btn" @click="handleStop(scope.row)">停止</el-button>
@@ -543,6 +544,27 @@ const submitForm = async (formEl: FormInstance | undefined) => {
   })
 }
 
+const quickDeploy = (row: DeployTask) => {
+  ElMessageBox.confirm(
+    `确认使用项目「${row.projectName || row.projectId}」环境「${row.profileName || row.profileId}」(${row.gitRefType}: ${row.gitRef}) 快速部署？`,
+    '确认快速部署',
+    { confirmButtonText: '确定', cancelButtonText: '取消', type: 'info' }
+  ).then(async () => {
+    try {
+      await createTask({
+        projectId: row.projectId,
+        profileId: row.profileId,
+        gitRefType: row.gitRefType,
+        gitRef: row.gitRef
+      })
+      ElMessage.success('快速部署任务已创建')
+      loadTasks()
+    } catch (error: any) {
+      ElMessage.error(error.message || '快速部署失败')
+    }
+  }).catch(() => {})
+}
+
 const handleStop = (row: DeployTask) => {
   ElMessageBox.confirm(`确认停止任务 ${row.id} 吗?`, '警告', {
     confirmButtonText: '确定',
@@ -770,5 +792,9 @@ onMounted(() => {
   white-space: pre-wrap;
   word-break: break-all;
   user-select: all;
+}
+
+.nowrap {
+  white-space: nowrap;
 }
 </style>

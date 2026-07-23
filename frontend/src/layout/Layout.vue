@@ -88,6 +88,7 @@
       <div class="footer">
         <span class="footer-text">Light Deploy © 2026</span>
         <a href="https://github.com/craneding/" target="_blank" class="footer-link">@craneding</a>
+        <span class="version">v{{ version }}</span>
       </div>
     </el-main>
   </el-container>
@@ -108,6 +109,7 @@ import {
   Monitor, 
   List 
 } from '@element-plus/icons-vue'
+import { version } from '../../package.json'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -241,6 +243,12 @@ const handleLogout = () => {
 
 .footer-link:hover {
   color: var(--el-color-primary);
+}
+
+.version {
+  margin-left: auto;
+  font-size: 12px;
+  color: #D1D5DB;
 }
 
 /* Mobile Responsiveness */

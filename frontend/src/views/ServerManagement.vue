@@ -199,6 +199,7 @@ const handleCurrentChange = (val: number) => {
 const handleCreate = () => {
   isEdit.value = false
   Object.assign(form, initialFormState)
+  delete form.id
   // For create, password is required
   rules.password = [{ required: true, message: '请输入密码', trigger: 'blur' }]
   dialogVisible.value = true

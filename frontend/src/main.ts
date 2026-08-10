@@ -6,6 +6,13 @@ import store from './store'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 
+window.addEventListener('unhandledrejection', (event) => {
+  if (event.reason?.message?.includes('dynamically imported module') || event.reason?.message?.includes('Failed to fetch')) {
+    event.preventDefault()
+    window.location.reload()
+  }
+})
+
 const app = createApp(App)
 
 app.use(router)

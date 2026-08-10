@@ -473,6 +473,7 @@ const searchGitlabProjects = async (query: string) => {
 const handleCreate = () => {
   isEdit.value = false
   Object.assign(form, initialFormState)
+  delete form.id
   searchGitlabProjects('')
   dialogVisible.value = true
   setTimeout(() => formRef.value?.clearValidate(), 0)
@@ -563,6 +564,7 @@ const handleManageProfiles = (row: Project) => {
 const handleCreateProfile = () => {
   isProfileEdit.value = false
   Object.assign(profileForm, initialProfileFormState)
+  delete profileForm.id
   profileForm.projectId = currentProject.value!.id!
   profileFormDialogVisible.value = true
   setTimeout(() => profileFormRef.value?.clearValidate(), 0)

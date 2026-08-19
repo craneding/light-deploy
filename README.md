@@ -79,6 +79,12 @@ npm run build
 ```
 构建成功后，在 `frontend/dist` 目录下会生成静态文件。您可以将这些文件部署到 Nginx 等 Web 服务器上。
 
+### Docker 镜像构建（后端）
+```bash
+docker build -t light-deploy-backend ./backend
+```
+构建成功后，可使用 `docker save light-deploy-backend | gzip > light-deploy-backend.tar.gz` 将镜像打包，并拷贝到目标服务器上通过 `docker load` 导入。
+
 #### 环境变量加载机制
 Vite 会根据当前运行的命令自动加载对应的环境变量文件：
 - **`npm run dev`**: 默认处于 `development` 模式，会加载 `.env` 和 `.env.development`（如果存在）。

@@ -288,7 +288,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  height: calc(100vh - 120px);
+  min-height: calc(100vh - 160px);
 }
 
 .page-header {

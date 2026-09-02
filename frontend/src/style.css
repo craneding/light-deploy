@@ -92,6 +92,10 @@ body {
   flex-direction: column;
 }
 
+.el-main {
+  overflow: visible !important;
+}
+
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;

@@ -180,6 +180,8 @@ const handleLogout = () => {
 .layout-container {
   min-height: 100vh;
   background-color: var(--bg-app);
+  display: flex;
+  flex-direction: column;
 }
 
 .header {
@@ -274,14 +276,17 @@ const handleLogout = () => {
 }
 
 .main-content {
-  padding: 28px 32px 20px;
-  max-width: 1440px;
-  margin: 0 auto;
+  padding: 24px 32px 20px;
   width: 100%;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 60px);
+  flex: 1;
+  overflow: visible !important;
+}
+
+:deep(.el-main) {
+  overflow: visible !important;
 }
 
 .user-profile-pill {

@@ -11,21 +11,18 @@ import zhCn from 'element-plus/es/locale/lang/zh-cn'
 
 <style>
 #app {
-  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu,
-    Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  min-height: 100vh;
   margin: 0;
   padding: 0;
-  overflow: hidden;
 }
 
 body {
   margin: 0;
   padding: 0;
-  overflow: hidden;
-  background-color: #f5f7fa;
+  background-color: var(--bg-app);
 }
 </style>

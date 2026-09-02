@@ -2,13 +2,16 @@
   <div class="deploy-tasks">
     <div class="page-header">
       <div>
-        <h1 class="page-title">部署任务</h1>
-        <p class="page-subtitle">管理并查看项目的部署任务与状态</p>
+        <h1 class="page-title">
+          <el-icon class="title-icon"><DocumentCopy /></el-icon>
+          部署任务
+        </h1>
+        <p class="page-subtitle">监控全平台任务执行状态、产物分发与历史部署日志</p>
       </div>
       <div class="header-actions">
         <el-input
           v-model="searchQuery"
-          placeholder="搜索项目名称、分支、Commit"
+          placeholder="搜索项目名称、分支、Commit..."
           class="search-input"
           clearable
           @keyup.enter="handleSearch"
@@ -18,73 +21,103 @@
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
-        <el-button size="large" @click="loadTasks" :loading="loading" class="action-btn">
-          <template #icon><el-icon><Refresh /></el-icon></template>
-          刷新
+        <el-button @click="loadTasks" :loading="loading" class="action-btn">
+          <el-icon><Refresh /></el-icon> 刷新
         </el-button>
-        <el-button type="primary" size="large" @click="handleCreate" class="action-btn">
-          <template #icon><el-icon><Plus /></el-icon></template>
-          新建任务
+        <el-button type="primary" @click="handleCreate" class="action-btn">
+          <el-icon><Plus /></el-icon> 新建任务
         </el-button>
       </div>
     </div>
 
+    <!-- Table Container -->
     <div class="table-container">
-      <el-table :data="taskList" v-loading="loading" style="width: 100%" :header-cell-style="{ background: '#F9FAFB', color: '#4B5563', fontWeight: 600 }">
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="projectId" label="项目名称" min-width="150">
+      <el-table :data="taskList" v-loading="loading" style="width: 100%" class="tasks-table">
+        <el-table-column prop="id" label="ID" width="70" align="center">
           <template #default="scope">
-            <span class="font-medium">{{ scope.row.projectName || getProjectName(scope.row.projectId) }}</span>
+            <span class="mono-id">#{{ scope.row.id }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="profileId" label="环境名称" min-width="120">
+
+        <el-table-column prop="projectName" label="项目名称 / 环境" min-width="170">
           <template #default="scope">
-            <span class="font-medium">{{ scope.row.profileName || `环境ID: ${scope.row.profileId}` }}</span>
+            <div class="project-meta-cell">
+              <span class="project-name">{{ scope.row.projectName || getProjectName(scope.row.projectId) }}</span>
+              <span class="profile-name-tag">{{ scope.row.profileName || `环境ID: ${scope.row.profileId}` }}</span>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column prop="gitRefType" label="Git类型" width="120">
+
+        <el-table-column prop="gitRef" label="Git 引用" min-width="190">
           <template #default="scope">
-            <el-tag size="small" type="info" effect="plain" class="soft-tag">{{ scope.row.gitRefType }}</el-tag>
+            <div class="git-badge">
+              <span class="git-type-pill" :class="`pill-${scope.row.gitRefType}`">
+                {{ scope.row.gitRefType || 'branch' }}
+              </span>
+              <el-tooltip :content="scope.row.gitRef" placement="top" :disabled="scope.row.gitRefType !== 'commit'">
+                <span class="git-ref-str">
+                  {{ scope.row.gitRefType === 'commit' && scope.row.gitRef?.length > 8 ? scope.row.gitRef.substring(0, 8) : scope.row.gitRef }}
+                </span>
+              </el-tooltip>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column prop="gitRef" label="Git引用" min-width="200">
-          <template #default="scope">
-            <el-tooltip :content="scope.row.gitRef" placement="top" :disabled="scope.row.gitRefType !== 'commit'">
-              <span class="git-ref-text">{{ scope.row.gitRefType === 'commit' && scope.row.gitRef?.length > 8 ? scope.row.gitRef.substring(0, 8) : scope.row.gitRef }}</span>
-            </el-tooltip>
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="120">
+
+        <el-table-column prop="status" label="状态" width="110">
           <template #default="scope">
             <el-tag :type="getStatusType(scope.row.status)" effect="light" round class="status-tag">
+              <span v-if="scope.row.status?.toLowerCase() === 'running'" class="pulse-dot"></span>
               {{ getStatusText(scope.row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="operator" label="操作人" min-width="100">
+
+        <el-table-column prop="operator" label="操作人" width="110">
           <template #default="scope">
-            <span>{{ scope.row.operator || '-' }}</span>
+            <div class="operator-cell">
+              <el-icon><User /></el-icon>
+              <span>{{ scope.row.operator || '系统' }}</span>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column label="耗时" min-width="180">
+
+        <el-table-column label="耗时" width="100">
           <template #default="scope">
-            <span class="nowrap">{{ calculateDuration(scope.row.startTime, scope.row.endTime) }}</span>
+            <span class="duration-text">{{ calculateDuration(scope.row.startTime, scope.row.endTime) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" min-width="180" />
-        <el-table-column label="操作" width="310" fixed="right">
+
+        <el-table-column prop="createdAt" label="创建时间" width="160">
           <template #default="scope">
-            <el-button size="small" type="primary" plain class="soft-btn" @click="viewConsole(scope.row.id)">控制台</el-button>
-            <el-button size="small" plain class="soft-btn" @click="quickDeploy(scope.row)">快速部署</el-button>
-            <el-button v-if="scope.row.status === 'SUCCESS'" size="small" type="success" plain class="soft-btn" @click="viewArtifacts(scope.row)">产物</el-button>
-            <el-button v-if="scope.row.status === 'FAILED'" size="small" type="warning" plain class="soft-btn" @click="viewErrorLogs(scope.row)">错误</el-button>
-            <el-button v-if="scope.row.status === 'RUNNING'" size="small" type="danger" plain class="soft-btn" @click="handleStop(scope.row)">停止</el-button>
+            <span class="time-text">{{ scope.row.createdAt }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="操作" width="280" fixed="right" align="right">
+          <template #default="scope">
+            <div class="row-actions">
+              <el-button size="small" type="primary" @click="viewConsole(scope.row.id)" class="row-btn">
+                控制台
+              </el-button>
+              <el-button size="small" plain @click="quickDeploy(scope.row)" class="row-btn">
+                快速部署
+              </el-button>
+              <el-button v-if="scope.row.status === 'SUCCESS'" size="small" type="success" plain @click="viewArtifacts(scope.row)" class="row-btn">
+                产物
+              </el-button>
+              <el-button v-if="scope.row.status === 'FAILED'" size="small" type="danger" plain @click="viewErrorLogs(scope.row)" class="row-btn">
+                错误
+              </el-button>
+              <el-button v-if="scope.row.status === 'RUNNING'" size="small" type="danger" plain @click="handleStop(scope.row)" class="row-btn">
+                停止
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
     </div>
     
-    <div class="pagination-container">
+    <div class="pagination-wrapper" v-if="total > 0">
       <el-pagination
         v-model:current-page="currentPage"
         v-model:page-size="pageSize"
@@ -101,15 +134,16 @@
     <el-dialog
       v-model="dialogVisible"
       title="新建部署任务"
-      width="650px"
+      width="580px"
     >
       <el-form
         ref="formRef"
         :model="form"
         :rules="rules"
-        label-width="120px"
+        label-position="top"
+        class="task-form"
       >
-        <el-form-item label="选择项目" prop="projectId">
+        <el-form-item label="目标项目" prop="projectId">
           <el-select
             v-model="form.projectId"
             placeholder="请选择要部署的项目"
@@ -128,9 +162,10 @@
         <el-form-item label="目标环境" prop="profileId">
           <el-select
             v-model="form.profileId"
-            placeholder="请选择目标环境"
+            placeholder="请选择目标部署环境"
             style="width: 100%"
             :loading="profileLoading"
+            :disabled="!form.projectId"
           >
             <el-option
               v-for="item in profileList"
@@ -141,20 +176,22 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item label="引用类型" prop="gitRefType">
-          <el-radio-group v-model="form.gitRefType" @change="handleRefTypeChange">
-            <el-radio label="branch">分支 (Branch)</el-radio>
-            <el-radio label="tag">标签 (Tag)</el-radio>
-            <el-radio label="commit">提交 (Commit)</el-radio>
+        <el-form-item label="Git 引用类型" prop="gitRefType">
+          <el-radio-group v-model="form.gitRefType" @change="handleRefTypeChange" class="custom-radio-group">
+            <el-radio-button label="branch">分支 (Branch)</el-radio-button>
+            <el-radio-button label="tag">标签 (Tag)</el-radio-button>
+            <el-radio-button label="commit">提交 (Commit)</el-radio-button>
           </el-radio-group>
         </el-form-item>
 
-        <el-form-item label="选择引用" prop="gitRef">
+        <el-form-item label="选择版本 / 引用" prop="gitRef">
           <el-select
             v-model="form.gitRef"
-            :placeholder="'请选择' + form.gitRefType"
+            :placeholder="'请选择 ' + form.gitRefType"
             style="width: 100%"
             :loading="gitLoading"
+            :disabled="!form.projectId"
+            filterable
           >
             <el-option
               v-for="item in gitRefs"
@@ -164,13 +201,12 @@
             />
           </el-select>
         </el-form-item>
-
       </el-form>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
           <el-button type="primary" @click="submitForm(formRef)" :loading="submitting">
-            创建并执行
+            创建并执行部署
           </el-button>
         </span>
       </template>
@@ -179,12 +215,25 @@
     <!-- Error Logs Dialog -->
     <el-dialog
       v-model="errorDialogVisible"
-      title="部署错误信息"
-      width="700px"
+      title="部署错误日志"
+      width="720px"
     >
-      <div class="error-logs-container">
-        <pre v-if="currentErrorLogs" class="error-logs-content">{{ currentErrorLogs }}</pre>
-        <el-empty v-else description="暂无详细错误信息" />
+      <div class="error-window">
+        <div class="error-window-header">
+          <div class="window-dots">
+            <span class="dot red"></span>
+            <span class="dot yellow"></span>
+            <span class="dot green"></span>
+          </div>
+          <span class="window-title">error.log</span>
+          <el-button size="small" link type="primary" @click="copyErrorLogs" class="copy-btn">
+            复制日志
+          </el-button>
+        </div>
+        <div class="error-logs-container">
+          <pre v-if="currentErrorLogs" class="error-logs-content">{{ currentErrorLogs }}</pre>
+          <el-empty v-else description="暂无详细错误信息" />
+        </div>
       </div>
       <template #footer>
         <el-button @click="errorDialogVisible = false">关闭</el-button>
@@ -194,23 +243,30 @@
     <!-- Artifacts Dialog -->
     <el-dialog
       v-model="artifactsDialogVisible"
-      title="构建产物"
-      width="660px"
+      title="构建产物下载"
+      width="680px"
     >
       <div v-loading="artifactsLoading" class="artifacts-container">
-        <div v-if="scpInfo && artifactFiles.length > 0" class="scp-section">
+        <div v-if="scpInfo && artifactFiles.length > 0" class="scp-card">
           <div class="scp-header">
-            <span class="scp-label">SCP 下载命令</span>
-            <el-button size="small" type="primary" plain @click="copyScpCommand" class="soft-btn">
-              <template #icon><el-icon><CopyDocument /></el-icon></template>
+            <span class="scp-label">
+              <el-icon><CopyDocument /></el-icon>
+              SCP 远程下载命令
+            </span>
+            <el-button size="small" type="primary" plain @click="copyScpCommand">
               复制命令
             </el-button>
           </div>
           <pre class="scp-command">{{ scpCommand }}</pre>
         </div>
-        <div v-if="artifactFiles.length > 0" style="margin-bottom: 12px; text-align: right;">
-          <el-button type="primary" @click="downloadAllArtifacts">下载全部 (zip)</el-button>
+
+        <div v-if="artifactFiles.length > 0" class="artifacts-toolbar">
+          <span class="file-count">共 {{ artifactFiles.length }} 个产物文件</span>
+          <el-button type="primary" size="small" @click="downloadAllArtifacts">
+            <el-icon><Download /></el-icon> 打包下载全部 (ZIP)
+          </el-button>
         </div>
+
         <el-table
           v-if="artifactFiles.length > 0"
           :data="artifactTreeData"
@@ -218,19 +274,18 @@
           :tree-props="{ children: 'children' }"
           default-expand-all
           style="width: 100%"
+          class="artifact-table"
         >
-          <el-table-column label="文件名" prop="name" min-width="300">
+          <el-table-column label="产物路径" prop="name" min-width="320">
             <template #default="scope">
-              <el-icon v-if="scope.row.isDir">
-                <FolderOpened />
-              </el-icon>
-              <el-icon v-else>
-                <Document />
-              </el-icon>
-              <span style="margin-left: 6px;">{{ scope.row.name }}</span>
+              <div class="file-tree-node">
+                <el-icon v-if="scope.row.isDir" class="folder-icon"><FolderOpened /></el-icon>
+                <el-icon v-else class="file-icon"><Document /></el-icon>
+                <span class="file-name">{{ scope.row.name }}</span>
+              </div>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="100">
+          <el-table-column label="操作" width="90" align="right">
             <template #default="scope">
               <el-button
                 v-if="!scope.row.isDir"
@@ -238,7 +293,9 @@
                 type="primary"
                 link
                 @click="downloadArtifact(scope.row.fullPath)"
-              >下载</el-button>
+              >
+                下载
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -251,7 +308,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, Document, Search, FolderOpened, CopyDocument, Refresh } from '@element-plus/icons-vue'
+import { Plus, Document, Search, FolderOpened, CopyDocument, Refresh, DocumentCopy, User, Download } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import request from '../utils/request'
@@ -393,7 +450,7 @@ const calculateDuration = (startTime?: string, endTime?: string) => {
   const hours = Math.floor(minutes / 60)
   const remainingMinutes = minutes % 60
   
-  return `${hours}小时${remainingMinutes}分${remainingSeconds}秒`
+  return `${hours}时${remainingMinutes}分`
 }
 
 const loadTasks = async () => {
@@ -468,7 +525,6 @@ const fetchProfiles = async () => {
 const fetchGitRefs = async () => {
   if (!form.projectId) return
   
-  // Find the gitlab project ID associated with this project
   const project = projectList.value.find(p => p.id === form.projectId)
   if (!project || !project.gitlabProjectId) {
     ElMessage.warning('该项目未绑定Gitlab项目')
@@ -546,9 +602,9 @@ const submitForm = async (formEl: FormInstance | undefined) => {
 
 const quickDeploy = (row: DeployTask) => {
   ElMessageBox.confirm(
-    `确认使用项目「${row.projectName || row.projectId}」环境「${row.profileName || row.profileId}」(${row.gitRefType}: ${row.gitRef}) 快速部署？`,
-    '确认快速部署',
-    { confirmButtonText: '确定', cancelButtonText: '取消', type: 'info' }
+    `确认使用项目「${row.projectName || row.projectId}」环境「${row.profileName || row.profileId}」(${row.gitRefType}: ${row.gitRef}) 快速发起部署？`,
+    '快速部署确认',
+    { confirmButtonText: '立即部署', cancelButtonText: '取消', type: 'info' }
   ).then(async () => {
     try {
       await createTask({
@@ -566,14 +622,14 @@ const quickDeploy = (row: DeployTask) => {
 }
 
 const handleStop = (row: DeployTask) => {
-  ElMessageBox.confirm(`确认停止任务 ${row.id} 吗?`, '警告', {
-    confirmButtonText: '确定',
+  ElMessageBox.confirm(`确认停止部署任务 #${row.id} 吗?`, '停止任务', {
+    confirmButtonText: '确定停止',
     cancelButtonText: '取消',
     type: 'warning',
   }).then(async () => {
     try {
       await stopTask(row.id!)
-      ElMessage.success('任务已发送停止信号')
+      ElMessage.success('已发送终止信号')
       loadTasks()
     } catch (error: any) {
       ElMessage.error(error.message || '停止失败')
@@ -588,6 +644,11 @@ const viewConsole = (taskId: number) => {
 const viewErrorLogs = (row: DeployTask) => {
   currentErrorLogs.value = row.logs || '没有记录详细错误信息。'
   errorDialogVisible.value = true
+}
+
+const copyErrorLogs = () => {
+  navigator.clipboard.writeText(currentErrorLogs.value)
+  ElMessage.success('错误日志已复制到剪贴板')
 }
 
 const viewArtifacts = async (row: DeployTask) => {
@@ -630,21 +691,8 @@ const downloadAllArtifacts = () => {
 }
 
 const copyScpCommand = () => {
-  const text = scpCommand.value
-  const textarea = document.createElement('textarea')
-  textarea.value = text
-  textarea.style.position = 'fixed'
-  textarea.style.opacity = '0'
-  document.body.appendChild(textarea)
-  textarea.select()
-  try {
-    document.execCommand('copy')
-    ElMessage.success('SCP 命令已复制到剪贴板')
-  } catch {
-    ElMessage.error('复制失败，请手动选择复制')
-  } finally {
-    document.body.removeChild(textarea)
-  }
+  navigator.clipboard.writeText(scpCommand.value)
+  ElMessage.success('SCP 命令已复制到剪贴板')
 }
 
 onMounted(() => {
@@ -657,144 +705,274 @@ onMounted(() => {
 .deploy-tasks {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
+}
+
+.title-icon {
+  color: var(--el-color-primary);
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.search-input {
+  width: 280px;
+}
+
+.table-container {
+  background: #ffffff;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  box-shadow: var(--shadow-xs);
+}
+
+.mono-id {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.project-meta-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.project-name {
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 13.5px;
+}
+
+.profile-name-tag {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.git-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  max-width: 100%;
+}
+
+.git-type-pill {
+  font-size: 10.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.pill-branch { background: #e0e7ff; color: #4338ca; }
+.pill-tag { background: #dcfce7; color: #15803d; }
+.pill-commit { background: #fef3c7; color: #b45309; }
+
+.git-ref-str {
+  color: #334155;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-tag {
+  font-weight: 600;
+  padding: 0 10px;
+}
+
+.operator-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.duration-text {
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.time-text {
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.row-btn {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+/* Form Styling */
+.task-form :deep(.el-form-item__label) {
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 6px;
+}
+
+.custom-radio-group {
+  width: 100%;
+  display: flex;
+}
+
+.custom-radio-group :deep(.el-radio-button) {
+  flex: 1;
+}
+
+.custom-radio-group :deep(.el-radio-button__inner) {
+  width: 100%;
+}
+
+/* Error Window */
+.error-window {
+  background: #0f172a;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #334155;
+}
+
+.error-window-header {
+  height: 38px;
+  background: #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid #334155;
+}
+
+.window-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.dot.red { background-color: #ef4444; }
+.dot.yellow { background-color: #f59e0b; }
+.dot.green { background-color: #10b981; }
+
+.window-title {
+  color: #94a3b8;
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+.copy-btn {
+  font-size: 12px;
 }
 
 .error-logs-container {
-  background-color: #1e1e1e;
-  border-radius: 8px;
   padding: 16px;
-  max-height: 400px;
+  max-height: 380px;
   overflow-y: auto;
 }
 
 .error-logs-content {
-  color: #f87171;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 14px;
-  line-height: 1.5;
+  color: #fca5a5;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
   white-space: pre-wrap;
   word-wrap: break-word;
   margin: 0;
 }
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 0;
-}
-
-.page-title {
-  margin: 0;
-  font-size: 28px;
-  font-weight: 700;
-  color: #111827;
-  letter-spacing: -0.5px;
-}
-
-.page-subtitle {
-  margin: 8px 0 0 0;
-  font-size: 14px;
-  color: #6B7280;
-}
-
-.header-actions {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-}
-
-.search-input {
-  width: 300px;
-}
-
-.pagination-container {
-  padding: 16px 0;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.action-btn {
-  border-radius: 8px;
-  padding: 10px 20px;
-}
-
-.table-container {
-  background: white;
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid #E5E7EB;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-}
-
-.git-ref-text {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 13px;
-  background-color: #F3F4F6;
-  padding: 4px 8px;
-  border-radius: 6px;
-  color: #4B5563;
-  border: 1px solid #E5E7EB;
-}
-
-.soft-btn {
-  border-radius: 6px;
-  font-weight: 500;
-}
-
-.soft-tag {
-  border-radius: 6px;
-  font-weight: 500;
-}
-
-.status-tag {
-  font-weight: 600;
-  padding: 0 12px;
-}
-
+/* Artifacts Window */
 .artifacts-container {
-  max-height: 500px;
+  max-height: 520px;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.scp-section {
-  background-color: #F3F4F6;
-  border: 1px solid #E5E7EB;
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 16px;
+.scp-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px;
 }
 
 .scp-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .scp-label {
   font-weight: 600;
   font-size: 13px;
-  color: #374151;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .scp-command {
-  background-color: #1e1e1e;
-  color: #e5e5e5;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 13px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
   line-height: 1.5;
   padding: 12px;
-  border-radius: 6px;
+  border-radius: 8px;
   margin: 0;
-  overflow-x: auto;
-  white-space: pre-wrap;
   word-break: break-all;
   user-select: all;
 }
 
-.nowrap {
-  white-space: nowrap;
+.artifacts-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 4px;
+}
+
+.file-count {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.file-tree-node {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.folder-icon {
+  color: #f59e0b;
+}
+
+.file-icon {
+  color: #64748b;
+}
+
+.file-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
 }
 </style>

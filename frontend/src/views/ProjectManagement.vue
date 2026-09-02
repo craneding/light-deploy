@@ -2,13 +2,16 @@
   <div class="project-management">
     <div class="page-header">
       <div>
-        <h1 class="page-title">项目管理</h1>
-        <p class="page-subtitle">创建和配置您的部署项目与环境</p>
+        <h1 class="page-title">
+          <el-icon class="title-icon"><Folder /></el-icon>
+          项目管理
+        </h1>
+        <p class="page-subtitle">配置部署工程、关联 GitLab 仓库并定制多套发布环境</p>
       </div>
       <div class="header-actions">
         <el-input
           v-model="searchQuery"
-          placeholder="搜索项目..."
+          placeholder="搜索项目名称..."
           class="search-input"
           clearable
           @input="handleSearch"
@@ -17,42 +20,62 @@
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
-        <el-button type="primary" size="large" @click="handleCreate" class="action-btn">
-          <template #icon><el-icon><Plus /></el-icon></template>
-          新增项目
+        <el-button type="primary" @click="handleCreate" class="action-btn">
+          <el-icon><Plus /></el-icon> 新增项目
         </el-button>
       </div>
     </div>
 
     <div v-loading="loading" class="content-area">
-      <el-row :gutter="24" v-if="projectList.length > 0">
-        <el-col :xs="24" :sm="12" :md="8" :lg="6" v-for="(project, index) in projectList" :key="project.id" style="margin-bottom: 24px;">
-          <el-card class="project-card" :style="{ '--card-theme-color': getRandomColor(index) }">
-            <div class="card-header-line"></div>
-            <template #header>
-              <div class="project-card-header">
-                <div class="header-content">
-                  <div class="title-index">{{ String(index + 1).padStart(2, '0') }}</div>
+      <el-row :gutter="20" v-if="projectList.length > 0">
+        <el-col :xs="24" :sm="12" :md="8" :lg="6" v-for="(project, index) in projectList" :key="project.id" class="card-col">
+          <div class="project-item-card">
+            <div class="card-top-bar" :style="{ backgroundColor: getBrandColor(index) }"></div>
+            
+            <div class="card-main">
+              <div class="card-head">
+                <div class="project-title-group">
+                  <span class="project-idx" :style="{ color: getBrandColor(index), background: getBrandBg(index) }">
+                    {{ String(index + 1).padStart(2, '0') }}
+                  </span>
                   <span class="project-name" :title="project.name">{{ project.name }}</span>
                 </div>
-                <el-tag size="small" type="info" class="rounded-tag">GitLab ID: {{ project.gitlabProjectId }}</el-tag>
+                <span class="gitlab-id-badge" v-if="project.gitlabProjectId">
+                  GitLab #{{ project.gitlabProjectId }}
+                </span>
               </div>
-            </template>
-            <div class="project-actions">
-              <el-button size="default" type="primary" plain class="full-width-btn" @click="handleManageProfiles(project)">
-                <el-icon><Setting /></el-icon> 环境配置
-              </el-button>
-              <div class="action-group">
-                <el-button size="small" class="flex-1" @click="handleEdit(project)"><el-icon><Edit /></el-icon> 编辑</el-button>
-                <el-button size="small" type="danger" plain class="flex-1" @click="handleDelete(project)"><el-icon><Delete /></el-icon> 删除</el-button>
+
+              <div class="card-meta">
+                <div class="meta-row">
+                  <span class="meta-label">产物路径</span>
+                  <span class="meta-val font-mono">{{ project.buildOutputDir || '未指定' }}</span>
+                </div>
+                <div class="meta-row">
+                  <span class="meta-label">部署目录</span>
+                  <span class="meta-val font-mono text-ellipsis" :title="project.deployDir">{{ project.deployDir || '未配置' }}</span>
+                </div>
+              </div>
+
+              <div class="card-actions">
+                <el-button type="primary" plain class="primary-card-btn" @click="handleManageProfiles(project)">
+                  <el-icon><Setting /></el-icon> 环境配置
+                </el-button>
+                <div class="action-sub-group">
+                  <el-button size="small" plain class="sub-btn" @click="handleEdit(project)">
+                    <el-icon><Edit /></el-icon> 编辑
+                  </el-button>
+                  <el-button size="small" type="danger" plain class="sub-btn" @click="handleDelete(project)">
+                    <el-icon><Delete /></el-icon> 删除
+                  </el-button>
+                </div>
               </div>
             </div>
-          </el-card>
+          </div>
         </el-col>
       </el-row>
-      <el-empty v-else description="暂无项目数据"></el-empty>
+      <el-empty v-else description="暂无项目数据，请点击上方按钮新建项目" />
 
-      <div class="pagination-container" v-if="total > 0">
+      <div class="pagination-wrapper" v-if="total > 0">
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
@@ -70,64 +93,94 @@
     <el-dialog
       v-model="dialogVisible"
       :title="isEdit ? '编辑项目' : '新增项目'"
-      width="600px"
+      width="640px"
     >
       <el-form
         ref="formRef"
         :model="form"
         :rules="rules"
-        label-width="120px"
+        label-position="top"
+        class="custom-form"
       >
-        <el-form-item label="项目名称" prop="name">
-          <el-input v-model="form.name" placeholder="自定义项目名称" />
-        </el-form-item>
-        <el-form-item label="Gitlab项目" prop="gitlabProjectId">
-          <el-select
-            v-model="form.gitlabProjectId"
-            placeholder="请选择Gitlab项目"
-            filterable
-            remote
-            :remote-method="searchGitlabProjects"
-            :loading="gitlabLoading"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="item in gitlabProjects"
-              :key="item.id"
-              :label="item.name_with_namespace"
-              :value="item.id"
-            />
-          </el-select>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="项目名称" prop="name">
+              <el-input v-model="form.name" placeholder="自定义项目标识/名称" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="关联 GitLab 仓库" prop="gitlabProjectId">
+              <el-select
+                v-model="form.gitlabProjectId"
+                placeholder="搜索并选择 GitLab 仓库"
+                filterable
+                remote
+                :remote-method="searchGitlabProjects"
+                :loading="gitlabLoading"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="item in gitlabProjects"
+                  :key="item.id"
+                  :label="item.name_with_namespace"
+                  :value="item.id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <div class="form-section-title">
+          <el-icon><Setting /></el-icon> 默认部署参数
+        </div>
+        
+        <el-form-item label="构建脚本 (Build Script)" prop="buildScript">
+          <el-input 
+            v-model="form.buildScript" 
+            type="textarea" 
+            :rows="3" 
+            placeholder="例如: npm install && npm run build" 
+            class="code-textarea"
+          />
+          <div class="form-tip">
+            如需切换 Node/JDK/Maven 版本，在脚本前添加 <code>. /usr/local/nvm/nvm.sh && nvm use 22 && sdk use java 17.0.8-tem &&</code>
+          </div>
         </el-form-item>
 
-        <el-divider>默认部署配置</el-divider>
-        
-        <el-form-item label="构建脚本" prop="buildScript">
-          <el-input v-model="form.buildScript" type="textarea" :rows="3" placeholder="例如: npm install && npm run build" />
-          <div class="form-tip">如需切换 Node/JDK/Maven 版本，在脚本前添加 <code>. /usr/local/nvm/nvm.sh && nvm install 22 && nvm install 22 && nvm use 22 && source /usr/local/sdkman/bin/sdkman-init.sh && sdk use java 11.0.12-tem && sdk use maven 3.8.8 &&</code></div>
-        </el-form-item>
-        <el-form-item label="构建后产物" prop="buildOutputDir">
-          <el-input v-model="form.buildOutputDir" placeholder="例如: dist 或者 target/app.jar (构建成功后供下载)" />
-        </el-form-item>
-        <el-form-item label="同步到部署目录" prop="syncToDeployDir">
-          <el-switch v-model="form.syncToDeployDir" active-text="开启" inactive-text="关闭" />
-        </el-form-item>
-        <el-form-item label="部署目录" prop="deployDir" v-if="form.syncToDeployDir !== false">
+        <el-row :gutter="16">
+          <el-col :span="14">
+            <el-form-item label="构建后产物路径" prop="buildOutputDir">
+              <el-input v-model="form.buildOutputDir" placeholder="例如: dist 或 target/app.jar" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="10">
+            <el-form-item label="同步到部署目录" prop="syncToDeployDir">
+              <el-switch v-model="form.syncToDeployDir" active-text="开启同步" inactive-text="仅构建" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-form-item label="服务器部署目录" prop="deployDir" v-if="form.syncToDeployDir !== false">
           <el-input v-model="form.deployDir" placeholder="例如: /www/wwwroot/my-app" />
         </el-form-item>
-        <el-form-item label="前置脚本" prop="preScript">
-          <el-input v-model="form.preScript" type="textarea" :rows="3" placeholder="部署前执行" />
-        </el-form-item>
-        <el-form-item label="后置脚本" prop="postScript">
-          <el-input v-model="form.postScript" type="textarea" :rows="3" placeholder="部署后执行(如: pm2 restart app)" />
-        </el-form-item>
+
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="前置脚本 (Pre-deploy)" prop="preScript">
+              <el-input v-model="form.preScript" type="textarea" :rows="2" placeholder="部署同步前在目标服务器执行" class="code-textarea" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="后置脚本 (Post-deploy)" prop="postScript">
+              <el-input v-model="form.postScript" type="textarea" :rows="2" placeholder="部署同步后在目标服务器执行 (如: pm2 restart app)" class="code-textarea" />
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitForm(formRef)">
-            确定
-          </el-button>
+          <el-button type="primary" @click="submitForm(formRef)">确定保存</el-button>
         </span>
       </template>
     </el-dialog>
@@ -136,49 +189,43 @@
     <el-dialog
       v-model="profileDialogVisible"
       :title="`环境配置 - ${currentProject?.name}`"
-      width="850px"
-      class="custom-dialog"
+      width="820px"
       destroy-on-close
     >
       <div class="dialog-content">
         <div class="dialog-actions">
-          <el-button type="primary" @click="handleCreateProfile" class="soft-btn">
-            <template #icon><el-icon><Plus /></el-icon></template>
-            新增环境
+          <el-button type="primary" size="small" @click="handleCreateProfile">
+            <el-icon><Plus /></el-icon> 新增环境
           </el-button>
         </div>
         
         <el-table 
           :data="profileList" 
           v-loading="profileLoading" 
-          border 
           class="custom-table"
-          :header-cell-style="{ background: '#F9FAFB', color: '#4B5563', fontWeight: 600 }"
         >
-          <el-table-column prop="name" label="环境名称" width="180">
+          <el-table-column prop="name" label="环境名称" width="160">
             <template #default="scope">
               <span class="profile-name-tag">{{ scope.row.name }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="serverId" label="关联服务器" min-width="200">
+          <el-table-column prop="serverId" label="关联目标服务器" min-width="200">
             <template #default="scope">
               <div class="server-info-cell" v-if="getServerName(scope.row.serverId)">
                 <el-icon><Monitor /></el-icon>
                 <span>{{ getServerName(scope.row.serverId) }}</span>
               </div>
-              <span v-else class="text-gray-400">未关联</span>
+              <span v-else class="text-muted">未绑定服务器 (仅本地构建)</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="180" align="center">
+          <el-table-column label="操作" width="160" align="right">
             <template #default="scope">
-              <div class="table-actions">
-                <el-button size="small" @click="handleEditProfile(scope.row)" class="soft-btn">
-                  <el-icon><Edit /></el-icon> 编辑
-                </el-button>
-                <el-button size="small" type="danger" plain @click="handleDeleteProfile(scope.row)" class="soft-btn">
-                  <el-icon><Delete /></el-icon> 删除
-                </el-button>
-              </div>
+              <el-button size="small" link type="primary" @click="handleEditProfile(scope.row)">
+                编辑
+              </el-button>
+              <el-button size="small" link type="danger" @click="handleDeleteProfile(scope.row)">
+                删除
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -188,110 +235,84 @@
     <!-- Create/Edit Profile Dialog -->
     <el-dialog
       v-model="profileFormDialogVisible"
-      :title="isProfileEdit ? '编辑环境' : '新增环境'"
-      width="700px"
-      class="custom-dialog"
+      :title="isProfileEdit ? '编辑环境配置' : '新增环境配置'"
+      width="680px"
     >
-      <div class="dialog-form-container">
-        <el-form
-          ref="profileFormRef"
-          :model="profileForm"
-          :rules="profileRules"
-          label-position="top"
-          class="modern-form"
-        >
-          <el-row :gutter="20">
-            <el-col :span="12">
-              <el-form-item label="环境名称" prop="name">
-                <el-input v-model="profileForm.name" placeholder="例如: 生产环境, 测试环境" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="目标服务器" prop="serverId">
-                <el-select v-model="profileForm.serverId" placeholder="请选择关联服务器(可选)" style="width: 100%" clearable>
-                  <el-option
-                    v-for="server in serverList"
-                    :key="server.id"
-                    :label="`${server.name} (${server.ip})`"
-                    :value="server.id"
-                  />
-                </el-select>
-              </el-form-item>
-            </el-col>
-          </el-row>
+      <el-form
+        ref="profileFormRef"
+        :model="profileForm"
+        :rules="profileRules"
+        label-position="top"
+        class="custom-form"
+      >
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="环境名称" prop="name">
+              <el-input v-model="profileForm.name" placeholder="例如: 生产环境, 测试环境" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="目标服务器" prop="serverId">
+              <el-select v-model="profileForm.serverId" placeholder="请选择目标服务器(可选)" style="width: 100%" clearable>
+                <el-option
+                  v-for="server in serverList"
+                  :key="server.id"
+                  :label="`${server.name} (${server.ip})`"
+                  :value="server.id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
 
-          <div class="config-section">
-            <div class="section-header">
-              <el-icon><Setting /></el-icon>
-              <span>部署脚本配置</span>
-            </div>
-            
-            <el-row :gutter="20">
-              <el-col :span="24">
-                <el-form-item label="构建脚本" prop="buildScript">
-                  <el-input 
-                    v-model="profileForm.buildScript" 
-                    type="textarea" 
-                    :rows="3" 
-                    placeholder="例如: npm install && npm run build" 
-                    class="code-input"
-                  />
-                  <div class="form-tip">如需切换 Node/JDK/Maven 版本，在脚本前添加 <code>. /usr/local/nvm/nvm.sh && nvm install 22 && nvm use 22 && source /usr/local/sdkman/bin/sdkman-init.sh && sdk use java 11.0.12-tem && sdk use maven 3.8.8 &&</code></div>
-                </el-form-item>
-              </el-col>
-              <el-col :span="24">
-                <el-form-item label="构建后产物" prop="buildOutputDir">
-                  <el-input 
-                    v-model="profileForm.buildOutputDir" 
-                    placeholder="例如: dist 或者 target/app.jar (覆盖项目默认配置)" 
-                  />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="同步到部署目录" prop="syncToDeployDir">
-                  <el-switch v-model="profileForm.syncToDeployDir" active-text="开启" inactive-text="关闭" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="部署目录" prop="deployDir" v-if="profileForm.syncToDeployDir !== false">
-                  <el-input 
-                    v-model="profileForm.deployDir" 
-                    placeholder="例如: /www/wwwroot/my-app" 
-                  />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="前置脚本" prop="preScript">
-                  <el-input 
-                    v-model="profileForm.preScript" 
-                    type="textarea" 
-                    :rows="3" 
-                    placeholder="部署前执行" 
-                    class="code-input"
-                  />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="后置脚本" prop="postScript">
-                  <el-input 
-                    v-model="profileForm.postScript" 
-                    type="textarea" 
-                    :rows="3" 
-                    placeholder="部署后执行(如: pm2 restart app)" 
-                    class="code-input"
-                  />
-                </el-form-item>
-              </el-col>
-            </el-row>
-          </div>
-        </el-form>
-      </div>
+        <div class="form-section-title">
+          <el-icon><Setting /></el-icon> 环境覆写参数 (留空则继承项目默认配置)
+        </div>
+        
+        <el-form-item label="构建脚本" prop="buildScript">
+          <el-input 
+            v-model="profileForm.buildScript" 
+            type="textarea" 
+            :rows="3" 
+            placeholder="例如: npm install && npm run build:prod" 
+            class="code-textarea"
+          />
+        </el-form-item>
+
+        <el-row :gutter="16">
+          <el-col :span="14">
+            <el-form-item label="构建后产物" prop="buildOutputDir">
+              <el-input v-model="profileForm.buildOutputDir" placeholder="例如: dist (覆盖默认)" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="10">
+            <el-form-item label="同步到部署目录" prop="syncToDeployDir">
+              <el-switch v-model="profileForm.syncToDeployDir" active-text="开启" inactive-text="关闭" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-form-item label="部署目录" prop="deployDir" v-if="profileForm.syncToDeployDir !== false">
+          <el-input v-model="profileForm.deployDir" placeholder="例如: /www/wwwroot/prod-app" />
+        </el-form-item>
+
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="前置脚本" prop="preScript">
+              <el-input v-model="profileForm.preScript" type="textarea" :rows="2" placeholder="部署前在服务器执行" class="code-textarea" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="后置脚本" prop="postScript">
+              <el-input v-model="profileForm.postScript" type="textarea" :rows="2" placeholder="部署后执行(如: pm2 restart app)" class="code-textarea" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </el-form>
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="profileFormDialogVisible = false" class="soft-btn">取消</el-button>
-          <el-button type="primary" @click="submitProfileForm(profileFormRef)" class="soft-btn">
-            确定
-          </el-button>
+          <el-button @click="profileFormDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitProfileForm(profileFormRef)">确定保存</el-button>
         </div>
       </template>
     </el-dialog>
@@ -300,7 +321,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { Plus, Setting, Edit, Delete, Search, Monitor } from '@element-plus/icons-vue'
+import { Plus, Setting, Edit, Delete, Search, Monitor, Folder } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import request from '../utils/request'
@@ -335,7 +356,7 @@ const loading = ref(false)
 const projectList = ref<Project[]>([])
 const searchQuery = ref('')
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(12)
 const total = ref(0)
 let searchTimeout: any = null
 
@@ -400,20 +421,11 @@ const profileRules = reactive<FormRules>({
   name: [{ required: true, message: '请输入环境名称', trigger: 'blur' }]
 })
 
-const themeColors = [
-  '#4f46e5', // Indigo
-  '#10b981', // Emerald
-  '#f59e0b', // Amber
-  '#ef4444', // Red
-  '#8b5cf6', // Violet
-  '#06b6d4', // Cyan
-  '#ec4899', // Pink
-  '#f97316'  // Orange
-]
+const themeColors = ['#4f46e5', '#10b981', '#f59e0b', '#06b6d4', '#8b5cf6', '#ec4899', '#f97316']
+const themeBgs = ['#eef2ff', '#ecfdf5', '#fffbeb', '#ecfeff', '#f5f3ff', '#fdf2f8', '#fff7ed']
 
-const getRandomColor = (index: number) => {
-  return themeColors[index % themeColors.length]
-}
+const getBrandColor = (index: number) => themeColors[index % themeColors.length]
+const getBrandBg = (index: number) => themeBgs[index % themeBgs.length]
 
 const fetchProjects = async () => {
   loading.value = true
@@ -424,9 +436,7 @@ const fetchProjects = async () => {
       ...(searchQuery.value?.trim() ? { search: searchQuery.value.trim() } : {})
     }
     const res: any = await request.get('/projects', { params })
-    
     const data = res.data || res
-    // Support both paginated and non-paginated responses for backward compatibility
     if (data && typeof data === 'object' && 'list' in data) {
       projectList.value = data.list
       total.value = data.total || 0
@@ -456,11 +466,9 @@ const searchGitlabProjects = async (query: string) => {
   gitlabLoading.value = true
   try {
     const res: any = await fetchGitlabProjects(query)
-    // The backend now returns { list: [...], total: ... }
     if (res && res.list) {
       gitlabProjects.value = res.list
     } else {
-      // Ensure we always have an array
       gitlabProjects.value = Array.isArray(res) ? res : (res.data || [])
     }
   } catch (error: any) {
@@ -489,7 +497,7 @@ const handleEdit = (row: Project) => {
 
 const handleDelete = (row: Project) => {
   ElMessageBox.confirm(`确认删除项目 ${row.name} 吗?`, '警告', {
-    confirmButtonText: '确定',
+    confirmButtonText: '确定删除',
     cancelButtonText: '取消',
     type: 'warning',
   }).then(async () => {
@@ -579,7 +587,7 @@ const handleEditProfile = (row: DeployProfile) => {
 
 const handleDeleteProfile = (row: DeployProfile) => {
   ElMessageBox.confirm(`确认删除环境 ${row.name} 吗?`, '警告', {
-    confirmButtonText: '确定',
+    confirmButtonText: '确定删除',
     cancelButtonText: '取消',
     type: 'warning',
   }).then(async () => {
@@ -623,283 +631,215 @@ onMounted(() => {
 .project-management {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
 }
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 0;
-}
-
-.page-title {
-  margin: 0;
-  font-size: 28px;
-  font-weight: 700;
-  color: #111827;
-  letter-spacing: -0.5px;
-}
-
-.page-subtitle {
-  margin: 8px 0 0 0;
-  font-size: 14px;
-  color: #6B7280;
+.title-icon {
+  color: var(--el-color-primary);
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .search-input {
-  width: 300px;
+  width: 280px;
 }
 
-:deep(.search-input .el-input__wrapper) {
-  border-radius: 8px;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+.card-col {
+  margin-bottom: 20px;
 }
 
-.action-btn {
-  border-radius: 8px;
-  padding: 10px 20px;
-}
-
-/* Custom Dialog & Form Styles */
-.custom-dialog :deep(.el-dialog) {
+/* Project Item Card */
+.project-item-card {
+  background: #ffffff;
   border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-}
-
-.custom-dialog :deep(.el-dialog__header) {
-  margin: 0;
-  padding: 20px 24px;
-  border-bottom: 1px solid #F3F4F6;
-}
-
-.custom-dialog :deep(.el-dialog__title) {
-  font-weight: 700;
-  color: #111827;
-}
-
-.custom-dialog :deep(.el-dialog__body) {
-  padding: 24px;
-}
-
-.dialog-content {
+  border: 1px solid #e2e8f0;
+  box-shadow: var(--shadow-xs);
   display: flex;
   flex-direction: column;
-  gap: 20px;
-}
-
-.dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.soft-btn {
-  border-radius: 8px;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.soft-btn:hover {
-  transform: translateY(-1px);
-}
-
-.custom-table {
-  border-radius: 8px;
+  height: 100%;
   overflow: hidden;
-  border: 1px solid #F3F4F6;
+  position: relative;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.project-item-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.card-top-bar {
+  height: 3px;
+  width: 100%;
+}
+
+.card-main {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.project-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.project-idx {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 6px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.project-name {
+  font-weight: 700;
+  font-size: 15px;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gitlab-id-badge {
+  font-size: 11px;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+}
+
+.card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 18px;
+}
+
+.meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+}
+
+.meta-label {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.meta-val {
+  color: #334155;
+  font-weight: 500;
+}
+
+.text-ellipsis {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.primary-card-btn {
+  width: 100%;
+}
+
+.action-sub-group {
+  display: flex;
+  gap: 8px;
+}
+
+.sub-btn {
+  flex: 1;
+}
+
+/* Forms & Dialog */
+.custom-form :deep(.el-form-item__label) {
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 4px;
+}
+
+.form-section-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 16px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.code-textarea :deep(.el-textarea__inner) {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  background-color: #0f172a;
+  color: #e2e8f0;
+}
+
+.form-tip {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 6px;
+}
+
+.form-tip code {
+  background: #f1f5f9;
+  color: #4f46e5;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 11.5px;
 }
 
 .profile-name-tag {
   font-weight: 600;
-  color: #4F46E5;
-  background: #EEF2FF;
-  padding: 4px 10px;
+  color: #4f46e5;
+  background: #eef2ff;
+  padding: 3px 8px;
   border-radius: 6px;
+  font-size: 12.5px;
 }
 
 .server-info-cell {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: #4B5563;
-}
-
-.table-actions {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-}
-
-.dialog-form-container {
-  max-height: 60vh;
-  overflow-y: auto;
-  padding-right: 8px;
-}
-
-.modern-form :deep(.el-form-item__label) {
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 8px;
-}
-
-.modern-form :deep(.el-input__wrapper),
-.modern-form :deep(.el-textarea__inner) {
-  border-radius: 8px;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-}
-
-.config-section {
-  margin-top: 24px;
-  padding: 20px;
-  background: #F9FAFB;
-  border-radius: 12px;
-  border: 1px solid #F3F4F6;
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  color: #111827;
-  margin-bottom: 20px;
-  font-size: 16px;
-}
-
-.code-input :deep(.el-textarea__inner) {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  gap: 6px;
+  color: #475569;
   font-size: 13px;
-  background-color: #ffffff;
 }
 
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding-top: 12px;
-}
-
-.project-card {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  overflow: hidden;
-}
-
-.card-header-line {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background-color: var(--card-theme-color, var(--el-color-primary));
-  z-index: 2;
-}
-
-:deep(.el-card__header) {
-  padding: 20px 24px;
-  border-bottom: 1px solid rgba(243, 244, 246, 0.8);
-  background: linear-gradient(to right, rgba(255, 255, 255, 0.9), rgba(249, 250, 251, 0.5));
-  position: relative;
-}
-
-:deep(.el-card__body) {
-  padding: 24px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background-color: #ffffff;
-}
-
-.project-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.header-content {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.title-index {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--card-theme-color, var(--el-color-primary));
-  background: color-mix(in srgb, var(--card-theme-color, var(--el-color-primary)) 15%, transparent);
-  padding: 6px 10px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.project-name {
-  font-weight: 700;
-  font-size: 17px;
-  color: #111827;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 140px;
-  letter-spacing: -0.3px;
-}
-
-.rounded-tag {
-  border-radius: 12px;
-  padding: 4px 12px;
-  font-weight: 600;
-  border: none;
-  background-color: #F3F4F6;
-  color: #4B5563;
-}
-
-.project-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: auto;
-}
-
-.action-group {
-  display: flex;
-  gap: 12px;
-}
-
-.full-width-btn {
-  width: 100%;
-}
-
-.form-tip {
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  line-height: 1.6;
-  margin-top: 4px;
-}
-.form-tip code {
-  background: var(--el-fill-color-light);
-  padding: 0 4px;
-  border-radius: 3px;
-  font-size: 12px;
-}
-
-.flex-1 {
-  flex: 1;
-}
-
-.pagination-container {
-  padding: 16px 0;
-  display: flex;
-  justify-content: flex-end;
+.text-muted {
+  color: #94a3b8;
+  font-size: 12.5px;
 }
 </style>

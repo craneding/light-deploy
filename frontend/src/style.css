@@ -1,38 +1,86 @@
-/* UI/UX Pro Max - Soft UI Evolution */
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700;800&display=swap');
+
 :root {
-  /* Element Plus Variable Overrides */
+  /* Element Plus Theme Colors - Modern Indigo/Violet Palette */
   --el-color-primary: #4f46e5;
-  --el-color-primary-light-3: #818cf8;
-  --el-color-primary-light-5: #a5b4fc;
+  --el-color-primary-light-3: #6366f1;
+  --el-color-primary-light-5: #818cf8;
   --el-color-primary-light-7: #c7d2fe;
-  --el-color-primary-light-9: #e0e7ff;
+  --el-color-primary-light-8: #e0e7ff;
+  --el-color-primary-light-9: #eef2ff;
+  --el-color-primary-dark-2: #4338ca;
   
   --el-color-success: #10b981;
-  --el-color-warning: #f59e0b;
-  --el-color-danger: #ef4444;
-  --el-color-info: #6b7280;
+  --el-color-success-light-3: #34d399;
+  --el-color-success-light-5: #6ee7b7;
+  --el-color-success-light-7: #a7f3d0;
+  --el-color-success-light-8: #d1fae5;
+  --el-color-success-light-9: #ecfdf5;
+  --el-color-success-dark-2: #059669;
 
-  --el-border-radius-base: 12px;
-  --el-border-radius-small: 8px;
-  --el-border-radius-round: 24px;
+  --el-color-warning: #f59e0b;
+  --el-color-warning-light-3: #fbbf24;
+  --el-color-warning-light-5: #fcd34d;
+  --el-color-warning-light-7: #fde68a;
+  --el-color-warning-light-8: #fef3c7;
+  --el-color-warning-light-9: #fffbeb;
+  --el-color-warning-dark-2: #d97706;
+
+  --el-color-danger: #ef4444;
+  --el-color-danger-light-3: #f87171;
+  --el-color-danger-light-5: #fca5a5;
+  --el-color-danger-light-7: #fecaca;
+  --el-color-danger-light-8: #fee2e2;
+  --el-color-danger-light-9: #fef2f2;
+  --el-color-danger-dark-2: #dc2626;
+
+  --el-color-info: #64748b;
+  --el-color-info-light-3: #94a3b8;
+  --el-color-info-light-5: #cbd5e1;
+  --el-color-info-light-7: #e2e8f0;
+  --el-color-info-light-8: #f1f5f9;
+  --el-color-info-light-9: #f8fafc;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Border Radii */
+  --el-border-radius-base: 10px;
+  --el-border-radius-small: 6px;
+  --el-border-radius-round: 9999px;
   
-  --el-box-shadow-light: 0 2px 10px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
-  --el-box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.04);
-  --el-box-shadow-hover: 0 20px 30px rgba(0, 0, 0, 0.12), 0 8px 12px rgba(0, 0, 0, 0.06);
+  /* Shadows & Elevation */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.03);
   
-  --font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  
-  /* Remove input focus borders globally */
-  --el-input-focus-border-color: var(--el-border-color);
-  --el-select-input-focus-border-color: var(--el-border-color);
+  --el-box-shadow-light: var(--shadow-sm);
+  --el-box-shadow: var(--shadow-md);
+  --el-box-shadow-hover: var(--shadow-lg);
+
+  /* Surface & Background */
+  --bg-app: #f8fafc;
+  --bg-card: #ffffff;
+  --border-subtle: #e2e8f0;
+  --border-card: #e2e8f0;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --text-sub: #94a3b8;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
   padding: 0;
-  font-family: var(--font-family);
-  background-color: #F9FAFB; /* Soft background */
-  color: #2D3436; /* Charcoal text */
+  font-family: var(--font-sans);
+  background-color: var(--bg-app);
+  color: var(--text-main);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -44,59 +92,203 @@ body {
   flex-direction: column;
 }
 
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
 /* Global Interactive Elements */
 a, button, .el-button, [role="button"] {
   cursor: pointer;
 }
 
-/* Soft UI Cards */
+/* Modern Card Styling */
 .el-card {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  border: 1px solid rgba(243, 244, 246, 0.8) !important;
-  box-shadow: var(--el-box-shadow-light) !important;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s ease !important;
+  border: 1px solid var(--border-card) !important;
+  box-shadow: var(--shadow-sm) !important;
   border-radius: var(--el-border-radius-base) !important;
-  background: rgba(255, 255, 255, 0.95) !important;
-  backdrop-filter: blur(8px);
+  background: var(--bg-card) !important;
 }
 
-.el-card:hover {
-  transform: translateY(-4px) scale(1.01);
-  box-shadow: var(--el-box-shadow-hover) !important;
-  border-color: var(--el-color-primary-light-7) !important;
+/* Common Page Header */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0 20px 0;
 }
 
-/* Buttons with smooth transitions */
+.page-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page-subtitle {
+  margin: 6px 0 0 0;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* Buttons */
 .el-button {
-  transition: all 0.25s ease !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
   font-weight: 500 !important;
+  border-radius: 8px !important;
 }
 
-.el-button:hover {
+.el-button--primary {
+  box-shadow: 0 1px 2px rgba(79, 70, 229, 0.2);
+}
+
+.el-button--primary:hover {
+  box-shadow: 0 4px 10px rgba(79, 70, 229, 0.35);
   transform: translateY(-1px);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
-.el-button:active {
+.el-button--primary:active {
   transform: translateY(0);
 }
 
-/* Accessibility Focus - Removed to prevent double borders on Element Plus components */
-/* *:focus-visible {
-  outline: 2px solid var(--el-color-primary) !important;
-  outline-offset: 2px !important;
-} */
+/* Form Inputs & Selects */
+.el-input__wrapper,
+.el-textarea__inner {
+  border-radius: 8px !important;
+  box-shadow: 0 0 0 1px var(--border-subtle) inset !important;
+  transition: all 0.2s ease;
+}
 
-/* Tables styling */
+.el-input__wrapper:hover,
+.el-textarea__inner:hover {
+  box-shadow: 0 0 0 1px #cbd5e1 inset !important;
+}
+
+.el-input__wrapper.is-focus,
+.el-textarea__inner:focus {
+  box-shadow: 0 0 0 2px var(--el-color-primary) inset !important;
+}
+
+/* Modern Tables styling */
 .el-table {
   border-radius: var(--el-border-radius-base);
   overflow: hidden;
-  box-shadow: var(--el-box-shadow-light);
-  border: 1px solid #F3F4F6;
+  box-shadow: var(--shadow-xs);
+  border: 1px solid var(--border-subtle);
+  --el-table-header-bg-color: #f8fafc;
+  --el-table-row-hover-bg-color: #f1f5f9;
 }
+
 .el-table th.el-table__cell {
-  background-color: #F9FAFB !important;
+  background-color: #f8fafc !important;
   font-weight: 600;
-  color: #4B5563;
+  color: #475569;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 12px 0;
+}
+
+.el-table td.el-table__cell {
+  padding: 13px 0;
+  color: #334155;
+  font-size: 14px;
+}
+
+/* Dialog Modernization */
+.el-dialog {
+  border-radius: 16px !important;
+  overflow: hidden;
+  box-shadow: var(--shadow-xl) !important;
+  border: 1px solid rgba(226, 232, 240, 0.8) !important;
+}
+
+.el-dialog__header {
+  margin: 0 !important;
+  padding: 20px 24px !important;
+  border-bottom: 1px solid var(--border-subtle);
+  background: #f8fafc;
+}
+
+.el-dialog__title {
+  font-weight: 700 !important;
+  font-size: 17px !important;
+  color: var(--text-main) !important;
+}
+
+.el-dialog__body {
+  padding: 24px !important;
+}
+
+.el-dialog__footer {
+  padding: 16px 24px !important;
+  border-top: 1px solid var(--border-subtle);
+  background: #f8fafc;
+}
+
+/* Monospace & Code elements */
+code, pre, .font-mono {
+  font-family: var(--font-mono);
+}
+
+.mono-tag {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: #f1f5f9;
+  color: #475569;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Pulsing dot animation for running tasks */
+.pulse-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--el-color-primary);
+  box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.7);
+  animation: pulse-ring 1.8s infinite cubic-bezier(0.66, 0, 0, 1);
+  margin-right: 6px;
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(79, 70, 229, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
+  }
+}
+
+/* Pagination container utility */
+.pagination-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 0 8px;
 }
 
 /* Mobile Responsive Global Overrides */
@@ -113,11 +305,6 @@ a, button, .el-button, [role="button"] {
     display: flex;
     justify-content: space-between;
     align-items: center;
-  }
-
-  .page-header .action-btn {
-    width: 100%;
-    margin-left: 0 !important;
   }
 
   .el-dialog {

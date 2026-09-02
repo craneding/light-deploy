@@ -2,13 +2,16 @@
   <div class="server-management">
     <div class="page-header">
       <div>
-        <h1 class="page-title">服务器管理</h1>
-        <p class="page-subtitle">添加和管理用于部署的目标服务器</p>
+        <h1 class="page-title">
+          <el-icon class="title-icon"><Monitor /></el-icon>
+          服务器管理
+        </h1>
+        <p class="page-subtitle">配置与维护用于接收构建产物和运行服务的 SSH 目标服务器集群</p>
       </div>
       <div class="header-actions">
         <el-input
           v-model="searchKeyword"
-          placeholder="搜索名称或IP..."
+          placeholder="搜索服务器名称或 IP..."
           class="search-input"
           clearable
           @keyup.enter="handleSearch"
@@ -18,33 +21,53 @@
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
-        <el-button type="primary" size="large" @click="handleCreate" class="action-btn">
-          <template #icon><el-icon><Plus /></el-icon></template>
-          新增服务器
+        <el-button type="primary" @click="handleCreate" class="action-btn">
+          <el-icon><Plus /></el-icon> 新增服务器
         </el-button>
       </div>
     </div>
 
+    <!-- Table Container -->
     <div class="table-container">
-      <el-table :data="serverList" v-loading="loading" style="width: 100%" :header-cell-style="{ background: '#F9FAFB', color: '#4B5563', fontWeight: 600 }">
-        <el-table-column prop="name" label="名称" width="180">
+      <el-table :data="serverList" v-loading="loading" style="width: 100%" class="server-table">
+        <el-table-column prop="id" label="ID" width="70" align="center">
           <template #default="scope">
-            <span class="font-medium">{{ scope.row.name }}</span>
+            <span class="mono-id">#{{ scope.row.id }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="ip" label="IP" width="180">
+
+        <el-table-column prop="name" label="服务器名称" min-width="160">
           <template #default="scope">
-            <span class="mono-text">{{ scope.row.ip }}</span>
+            <div class="server-name-cell">
+              <span class="server-status-dot"></span>
+              <span class="server-name">{{ scope.row.name }}</span>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column prop="port" label="端口" width="100" />
-        <el-table-column prop="username" label="用户名" width="150" />
-        <el-table-column label="操作" min-width="200" fixed="right">
+
+        <el-table-column prop="ip" label="IP 地址 / 端口" min-width="200">
           <template #default="scope">
-            <el-button size="small" type="primary" plain class="soft-btn" @click="handleEdit(scope.row)">
+            <div class="ip-port-cell">
+              <span class="mono-ip" @click="copyIp(scope.row.ip)" title="点击复制 IP">
+                {{ scope.row.ip }}
+              </span>
+              <span class="port-tag font-mono">:{{ scope.row.port || 22 }}</span>
+            </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="username" label="SSH 用户名" width="140">
+          <template #default="scope">
+            <span class="user-tag font-mono">{{ scope.row.username }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="操作" width="160" fixed="right" align="right">
+          <template #default="scope">
+            <el-button size="small" type="primary" link @click="handleEdit(scope.row)">
               编辑
             </el-button>
-            <el-button size="small" type="danger" plain class="soft-btn" @click="handleDelete(scope.row)">
+            <el-button size="small" type="danger" link @click="handleDelete(scope.row)">
               删除
             </el-button>
           </template>
@@ -52,7 +75,7 @@
       </el-table>
     </div>
     
-    <div class="pagination-container">
+    <div class="pagination-wrapper" v-if="total > 0">
       <el-pagination
         v-model:current-page="currentPage"
         v-model:page-size="pageSize"
@@ -68,38 +91,53 @@
     <!-- Create/Edit Dialog -->
     <el-dialog
       v-model="dialogVisible"
-      :title="isEdit ? '编辑服务器' : '新增服务器'"
-      width="600px"
+      :title="isEdit ? '编辑服务器' : '新增服务器节点'"
+      width="560px"
     >
       <el-form
         ref="formRef"
         :model="form"
         :rules="rules"
-        label-width="100px"
+        label-position="top"
         v-loading="submitting"
-        element-loading-text="正在验证SSH连接并保存..."
+        element-loading-text="正在验证 SSH 连通性并保存..."
+        class="server-form"
       >
-        <el-form-item label="名称" prop="name">
-          <el-input v-model="form.name" placeholder="请输入服务器名称" />
+        <el-form-item label="服务器名称" prop="name">
+          <el-input v-model="form.name" placeholder="例如: 生产主服务器 (Prod-Node-01)" />
         </el-form-item>
-        <el-form-item label="IP地址" prop="ip">
-          <el-input v-model="form.ip" placeholder="请输入IP地址" />
+
+        <el-row :gutter="16">
+          <el-col :span="16">
+            <el-form-item label="IP 地址 / 域名" prop="ip">
+              <el-input v-model="form.ip" placeholder="例如: 192.168.1.100" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="SSH 端口" prop="port">
+              <el-input-number v-model="form.port" :min="1" :max="65535" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-form-item label="SSH 用户名" prop="username">
+          <el-input v-model="form.username" placeholder="例如: root 或 deploy" />
         </el-form-item>
-        <el-form-item label="端口" prop="port">
-          <el-input-number v-model="form.port" :min="1" :max="65535" />
-        </el-form-item>
-        <el-form-item label="用户名" prop="username">
-          <el-input v-model="form.username" placeholder="请输入SSH用户名" />
-        </el-form-item>
-        <el-form-item label="密码" prop="password">
-          <el-input v-model="form.password" type="password" show-password placeholder="请输入SSH密码" />
+
+        <el-form-item label="SSH 密码 / 凭据" prop="password">
+          <el-input 
+            v-model="form.password" 
+            type="password" 
+            show-password 
+            :placeholder="isEdit ? '留空表示不修改原密码' : '请输入 SSH 登录密码'" 
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false" :disabled="submitting">取消</el-button>
           <el-button type="primary" @click="submitForm(formRef)" :loading="submitting">
-            确定
+            测试连接并保存
           </el-button>
         </span>
       </template>
@@ -109,7 +147,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { Plus, Search } from '@element-plus/icons-vue'
+import { Plus, Search, Monitor } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import request from '../utils/request'
@@ -200,26 +238,23 @@ const handleCreate = () => {
   isEdit.value = false
   Object.assign(form, initialFormState)
   delete form.id
-  // For create, password is required
   rules.password = [{ required: true, message: '请输入密码', trigger: 'blur' }]
   dialogVisible.value = true
-  // Reset form validation after dialog opens
   setTimeout(() => formRef.value?.clearValidate(), 0)
 }
 
 const handleEdit = (row: Server) => {
   isEdit.value = true
   Object.assign(form, row)
-  // For edit, password is not required (only if changing)
   rules.password = []
-  form.password = '' // Clear password field, only send if user types a new one
+  form.password = ''
   dialogVisible.value = true
   setTimeout(() => formRef.value?.clearValidate(), 0)
 }
 
 const handleDelete = (row: Server) => {
-  ElMessageBox.confirm(`确认删除服务器 ${row.name} 吗?`, '警告', {
-    confirmButtonText: '确定',
+  ElMessageBox.confirm(`确认删除服务器 ${row.name} 吗?`, '删除警告', {
+    confirmButtonText: '确定删除',
     cancelButtonText: '取消',
     type: 'warning',
   }).then(async () => {
@@ -231,6 +266,11 @@ const handleDelete = (row: Server) => {
       ElMessage.error(error.message || '删除失败')
     }
   }).catch(() => {})
+}
+
+const copyIp = (ip: string) => {
+  navigator.clipboard.writeText(ip)
+  ElMessage.success(`IP 地址 ${ip} 已复制`)
 }
 
 const submitForm = async (formEl: FormInstance | undefined) => {
@@ -251,7 +291,6 @@ const submitForm = async (formEl: FormInstance | undefined) => {
         dialogVisible.value = false
         fetchServers()
       } catch (error: any) {
-        // 错误已由 request 拦截器统一展示
         console.error('保存失败:', error)
       } finally {
         submitting.value = false
@@ -269,95 +308,97 @@ onMounted(() => {
 .server-management {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
 }
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 0;
-}
-
-.page-title {
-  margin: 0;
-  font-size: 28px;
-  font-weight: 700;
-  color: #111827;
-  letter-spacing: -0.5px;
-}
-
-.page-subtitle {
-  margin: 8px 0 0 0;
-  font-size: 14px;
-  color: #6B7280;
-}
-
-.action-btn {
-  border-radius: 8px;
-  padding: 10px 20px;
+.title-icon {
+  color: var(--el-color-primary);
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .search-input {
   width: 280px;
 }
 
-.search-input :deep(.el-input__wrapper) {
-  border-radius: 8px;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-}
-
 .table-container {
-  background: white;
+  background: #ffffff;
   border-radius: 12px;
   overflow: hidden;
-  border: 1px solid #E5E7EB;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  border: 1px solid #e2e8f0;
+  box-shadow: var(--shadow-xs);
 }
 
-.pagination-container {
-  padding: 16px 0;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.font-medium {
+.mono-id {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #64748b;
   font-weight: 600;
-  color: #374151;
 }
 
-.mono-text {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  background-color: #F3F4F6;
+.server-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.server-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #10b981;
+}
+
+.server-name {
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 13.5px;
+}
+
+.ip-port-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mono-ip {
+  font-family: var(--font-mono);
+  background: #f1f5f9;
   padding: 2px 6px;
   border-radius: 4px;
-  color: #4B5563;
-  font-size: 13px;
+  color: #334155;
+  font-size: 12.5px;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
 }
 
-.soft-btn {
-  border-radius: 6px;
-  font-weight: 500;
+.mono-ip:hover {
+  background: #e2e8f0;
+  color: var(--el-color-primary);
 }
 
-:deep(.el-table) {
-  --el-table-border-color: #F3F4F6;
-  --el-table-header-bg-color: #F9FAFB;
+.port-tag {
+  color: #64748b;
+  font-size: 12.5px;
 }
 
-:deep(.el-table th.el-table__cell) {
+.user-tag {
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  color: #475569;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.server-form :deep(.el-form-item__label) {
   font-weight: 600;
-  color: #4B5563;
-  background-color: #F9FAFB !important;
-}
-
-:deep(.el-table td.el-table__cell) {
-  padding: 12px 0;
+  color: #334155;
+  margin-bottom: 4px;
 }
 </style>

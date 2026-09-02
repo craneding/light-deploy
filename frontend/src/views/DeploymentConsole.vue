@@ -1,18 +1,39 @@
 <template>
   <div class="deployment-console">
+    <!-- Header -->
     <div class="page-header">
-      <div>
-        <h1 class="page-title">部署控制台</h1>
-        <p class="page-subtitle">任务 #{{ taskId }} 的实时日志输出</p>
+      <div class="header-left">
+        <el-button @click="goBack" class="back-btn" plain>
+          <el-icon><ArrowLeft /></el-icon> 返回
+        </el-button>
+        <div>
+          <h1 class="page-title">
+            <el-icon class="title-icon"><Terminal /></el-icon>
+            部署控制台
+            <span class="mono-id">#{{ taskId }}</span>
+          </h1>
+          <p class="page-subtitle" v-if="taskInfo">
+            项目：<strong>{{ taskInfo.projectName || taskInfo.projectId }}</strong>
+            <span class="divider-dot">•</span>
+            环境：<strong>{{ taskInfo.profileName || taskInfo.profileId }}</strong>
+            <span class="divider-dot">•</span>
+            引用：<code>{{ taskInfo.gitRef }}</code>
+          </p>
+          <p class="page-subtitle" v-else>
+            实时捕获构建编译、依赖安装与远程发布输出流
+          </p>
+        </div>
       </div>
-      <div>
+      
+      <div class="header-right">
         <el-tag :type="statusType" effect="light" round size="large" class="status-tag">
-          {{ status || '连接中...' }}
+          <span v-if="status === 'Connected' || status === 'Connecting'" class="pulse-dot"></span>
+          {{ getStatusLabel() }}
         </el-tag>
-        <el-button @click="goBack" class="action-btn" size="large">返回列表</el-button>
       </div>
     </div>
 
+    <!-- Terminal Window -->
     <div class="terminal-card">
       <div class="terminal-header">
         <div class="terminal-dots">
@@ -20,12 +41,53 @@
           <span class="dot yellow"></span>
           <span class="dot green"></span>
         </div>
-        <div class="terminal-title">bash - deployment-task-{{ taskId }}</div>
+        
+        <div class="terminal-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="4 17 10 11 4 5"></polyline>
+            <line x1="12" y1="19" x2="20" y2="19"></line>
+          </svg>
+          bash - light-deploy-runner #{{ taskId }}
+        </div>
+
+        <div class="terminal-actions">
+          <el-tooltip :content="autoScroll ? '自动滚动已开启' : '自动滚动已暂停'" placement="top">
+            <el-button 
+              size="small" 
+              :type="autoScroll ? 'primary' : 'info'" 
+              link 
+              @click="toggleAutoScroll"
+              class="term-btn"
+            >
+              <el-icon><Bottom /></el-icon> 自动滚动
+            </el-button>
+          </el-tooltip>
+          
+          <el-button size="small" link type="primary" @click="copyLogs" class="term-btn">
+            <el-icon><CopyDocument /></el-icon> 复制日志
+          </el-button>
+          
+          <el-button size="small" link type="info" @click="clearLogs" class="term-btn">
+            <el-icon><Delete /></el-icon> 清屏
+          </el-button>
+        </div>
       </div>
-      <div class="terminal-container" ref="terminalContainer">
-        <pre class="terminal-output">
-          <span v-for="(log, index) in logs" :key="index" :class="getLogClass(log)">{{ log }}</span>
-        </pre>
+
+      <div class="terminal-container" ref="terminalContainer" @scroll="handleUserScroll">
+        <div class="terminal-output">
+          <div v-if="logs.length === 0" class="terminal-loading">
+            <span class="cursor-blink">></span> 正在初始化终端并建立 WebSocket 管道...
+          </div>
+          <div 
+            v-for="(log, index) in logs" 
+            :key="index" 
+            class="log-line"
+            :class="getLogClass(log)"
+          >
+            <span class="line-num">{{ index + 1 }}</span>
+            <span class="line-text">{{ log }}</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -36,6 +98,7 @@ import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '../store/user'
 import { ElMessage } from 'element-plus'
+import { ArrowLeft, CopyDocument, Delete, Bottom } from '@element-plus/icons-vue'
 import request from '../utils/request'
 
 const route = useRoute()
@@ -45,6 +108,8 @@ const userStore = useUserStore()
 const taskId = route.params.id as string
 const logs = ref<string[]>([])
 const status = ref<string>('Connecting')
+const taskInfo = ref<any>(null)
+const autoScroll = ref(true)
 const terminalContainer = ref<HTMLElement | null>(null)
 let ws: WebSocket | null = null
 
@@ -55,20 +120,37 @@ const statusType = computed(() => {
   return 'info'
 })
 
+const getStatusLabel = () => {
+  switch (status.value) {
+    case 'Connected': return '实时传输中'
+    case 'Connecting': return '正在连接...'
+    case 'Success': return '部署成功'
+    case 'Failed': return '部署失败'
+    case 'Disconnected': return '已断开连接'
+    case 'Error': return '连接异常'
+    default: return status.value
+  }
+}
+
 const getLogClass = (log: string) => {
-  if (log.toLowerCase().includes('error') || log.toLowerCase().includes('failed')) {
+  const lower = log.toLowerCase()
+  if (lower.includes('error') || lower.includes('failed') || lower.includes('fatal:')) {
     return 'log-error'
   }
-  if (log.toLowerCase().includes('success') || log.toLowerCase().includes('done')) {
+  if (lower.includes('success') || lower.includes('done') || lower.includes('completed successfully')) {
     return 'log-success'
   }
-  if (log.toLowerCase().includes('warning')) {
+  if (lower.includes('warn') || lower.includes('warning')) {
     return 'log-warning'
+  }
+  if (log.startsWith('===>') || log.startsWith('>>>') || log.startsWith('[LIGHT-DEPLOY]')) {
+    return 'log-header'
   }
   return 'log-normal'
 }
 
 const scrollToBottom = () => {
+  if (!autoScroll.value) return
   nextTick(() => {
     if (terminalContainer.value) {
       terminalContainer.value.scrollTop = terminalContainer.value.scrollHeight
@@ -76,10 +158,39 @@ const scrollToBottom = () => {
   })
 }
 
+const handleUserScroll = () => {
+  if (!terminalContainer.value) return
+  const { scrollTop, scrollHeight, clientHeight } = terminalContainer.value
+  // If user scrolled up noticeably, disable autoScroll temporarily
+  if (scrollHeight - scrollTop - clientHeight > 60) {
+    autoScroll.value = false
+  } else {
+    autoScroll.value = true
+  }
+}
+
+const toggleAutoScroll = () => {
+  autoScroll.value = !autoScroll.value
+  if (autoScroll.value) {
+    scrollToBottom()
+  }
+}
+
+const copyLogs = () => {
+  navigator.clipboard.writeText(logs.value.join('\n'))
+  ElMessage.success('全部日志已复制到剪贴板')
+}
+
+const clearLogs = () => {
+  logs.value = []
+  ElMessage.info('控制台显示已清空')
+}
+
 const checkTaskStatusAndLogs = async () => {
   try {
     const res: any = await request.get(`/deploy-tasks/${taskId}`)
     const task = res.data || res
+    taskInfo.value = task
     
     if (task && (task.status === 'SUCCESS' || task.status === 'FAILED' || task.status === 'success' || task.status === 'failed')) {
       status.value = task.status.toUpperCase() === 'SUCCESS' ? 'Success' : 'Failed'
@@ -115,9 +226,7 @@ const connectWebSocket = async () => {
     basePath = '/api'
   }
   
-  // Clean up any trailing slashes from basePath
   basePath = basePath.replace(/\/$/, '')
-  
   const wsUrl = `${protocol}//${host}${basePath}/ws/deploy?taskId=${taskId}&token=${userStore.token}`
   
   try {
@@ -125,16 +234,14 @@ const connectWebSocket = async () => {
     
     ws.onopen = () => {
       status.value = 'Connected'
-      logs.value.push(`> Connected to deployment console for task ${taskId}`)
+      logs.value.push(`> Connected to deployment stream for task #${taskId}`)
       scrollToBottom()
     }
     
     ws.onmessage = (event) => {
-      // Assuming event.data is a string or JSON. We handle string here.
       logs.value.push(event.data)
       scrollToBottom()
       
-      // Basic heuristic to detect end of deployment
       if (event.data.includes('Deployment Completed Successfully')) {
         status.value = 'Success'
       } else if (event.data.includes('Deployment Failed')) {
@@ -146,13 +253,13 @@ const connectWebSocket = async () => {
       if (status.value !== 'Success' && status.value !== 'Failed') {
         status.value = 'Disconnected'
       }
-      logs.value.push(`> Connection closed.`)
+      logs.value.push(`> Stream connection closed.`)
       scrollToBottom()
     }
     
-    ws.onerror = (_error) => {
+    ws.onerror = () => {
       status.value = 'Error'
-      logs.value.push(`> WebSocket error occurred.`)
+      logs.value.push(`> WebSocket connection error.`)
       scrollToBottom()
     }
   } catch (err: any) {
@@ -180,7 +287,7 @@ onUnmounted(() => {
 .deployment-console {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 18px;
   height: calc(100vh - 120px);
 }
 
@@ -188,63 +295,73 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 0;
+  padding: 4px 0 12px 0;
   flex-shrink: 0;
 }
 
-.page-title {
-  margin: 0;
-  font-size: 28px;
-  font-weight: 700;
-  color: #111827;
-  letter-spacing: -0.5px;
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
-.page-subtitle {
-  margin: 8px 0 0 0;
-  font-size: 14px;
-  color: #6B7280;
+.back-btn {
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.mono-id {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  color: var(--el-color-primary);
+  background: #eef2ff;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #c7d2fe;
+}
+
+.divider-dot {
+  margin: 0 6px;
+  color: #cbd5e1;
 }
 
 .status-tag {
-  margin-right: 16px;
   font-weight: 600;
+  padding: 0 14px;
 }
 
-.action-btn {
-  border-radius: 8px;
-  padding: 10px 20px;
-}
-
+/* Terminal Card */
 .terminal-card {
   flex: 1;
   border-radius: 12px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background-color: #0f172a;
-  border: 1px solid #334155;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+  background-color: #0b0f19;
+  border: 1px solid #1e293b;
+  box-shadow: var(--shadow-xl) !important;
 }
 
 .terminal-header {
-  height: 40px;
-  background-color: #1e293b;
+  height: 42px;
+  background-color: #111827;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 0 16px;
-  border-bottom: 1px solid #334155;
-  position: relative;
+  border-bottom: 1px solid #1f2937;
+  user-select: none;
 }
 
 .terminal-dots {
   display: flex;
-  gap: 8px;
+  gap: 7px;
+  width: 70px;
 }
 
 .dot {
-  width: 12px;
-  height: 12px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
 }
 
@@ -253,52 +370,98 @@ onUnmounted(() => {
 .dot.green { background-color: #10b981; }
 
 .terminal-title {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: #94a3b8;
-  font-size: 13px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12.5px;
+  font-family: var(--font-mono);
+}
+
+.terminal-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.term-btn {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .terminal-container {
   flex: 1;
-  padding: 20px;
+  padding: 16px 20px;
   overflow-y: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  background-color: #0f172a;
+  font-family: var(--font-mono);
+  background-color: #0b0f19;
 }
 
 .terminal-output {
-  margin: 0;
   display: flex;
   flex-direction: column;
-  white-space: pre-wrap;
-  word-wrap: break-word;
+  gap: 2px;
 }
 
-.terminal-output span {
+.terminal-loading {
+  color: #94a3b8;
+  font-size: 13.5px;
+  padding: 10px 0;
+}
+
+.cursor-blink {
+  animation: blink 1s step-start infinite;
+  color: #6366f1;
+  font-weight: bold;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+.log-line {
+  display: flex;
+  gap: 16px;
   line-height: 1.6;
-  font-size: 14px;
+  font-size: 13px;
+  word-break: break-all;
 }
 
-.log-normal { color: #e2e8f0; } /* Changed to a more standard terminal text color (slate-200) */
-.log-error { color: #fca5a5; }
-.log-success { color: #6ee7b7; font-weight: bold; }
-.log-warning { color: #fcd34d; }
+.line-num {
+  width: 32px;
+  text-align: right;
+  color: #334155;
+  user-select: none;
+  font-size: 11.5px;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
 
-/* Custom scrollbar for terminal */
+.line-text {
+  flex: 1;
+  white-space: pre-wrap;
+}
+
+.log-normal { color: #cbd5e1; }
+.log-error { color: #f87171; background: rgba(239, 68, 68, 0.1); border-radius: 2px; padding: 0 4px; }
+.log-success { color: #34d399; font-weight: 500; }
+.log-warning { color: #fbbf24; }
+.log-header { color: #818cf8; font-weight: 600; }
+
+/* Custom scrollbar for dark terminal */
 .terminal-container::-webkit-scrollbar {
-  width: 10px;
+  width: 8px;
 }
 .terminal-container::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: #0b0f19;
 }
 .terminal-container::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 5px;
+  background: #1e293b;
+  border-radius: 4px;
 }
 .terminal-container::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #334155;
 }
 </style>

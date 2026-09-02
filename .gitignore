@@ -15,3 +15,7 @@ light-deploy-backend.tar.gz
 # Environment files
 .env
 .env.local
+
+/logs
+/.opencode
+/backend/logs

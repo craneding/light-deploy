@@ -112,6 +112,7 @@ const taskInfo = ref<any>(null)
 const autoScroll = ref(true)
 const terminalContainer = ref<HTMLElement | null>(null)
 let ws: WebSocket | null = null
+let isProgrammaticScroll = false
 
 const statusType = computed(() => {
   if (status.value === 'Connected' || status.value === 'Success') return 'success'
@@ -153,6 +154,7 @@ const scrollToBottom = () => {
   if (!autoScroll.value) return
   nextTick(() => {
     if (terminalContainer.value) {
+      isProgrammaticScroll = true
       terminalContainer.value.scrollTop = terminalContainer.value.scrollHeight
     }
   })
@@ -160,9 +162,14 @@ const scrollToBottom = () => {
 
 const handleUserScroll = () => {
   if (!terminalContainer.value) return
+  if (isProgrammaticScroll) {
+    isProgrammaticScroll = false
+    return
+  }
   const { scrollTop, scrollHeight, clientHeight } = terminalContainer.value
-  // If user scrolled up noticeably, disable autoScroll temporarily
-  if (scrollHeight - scrollTop - clientHeight > 60) {
+  const distanceToBottom = scrollHeight - scrollTop - clientHeight
+  // If user scrolled up noticeably (> 50px), pause autoScroll
+  if (distanceToBottom > 50) {
     autoScroll.value = false
   } else {
     autoScroll.value = true
@@ -288,7 +295,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  min-height: calc(100vh - 160px);
+  height: calc(100vh - 190px);
+  min-height: 480px;
 }
 
 .page-header {
@@ -333,6 +341,7 @@ onUnmounted(() => {
 /* Terminal Card */
 .terminal-card {
   flex: 1;
+  min-height: 0;
   border-radius: 12px;
   overflow: hidden;
   display: flex;
@@ -393,6 +402,7 @@ onUnmounted(() => {
 
 .terminal-container {
   flex: 1;
+  min-height: 0;
   padding: 16px 20px;
   overflow-y: auto;
   font-family: var(--font-mono);

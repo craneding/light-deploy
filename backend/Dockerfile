@@ -138,6 +138,12 @@ allprojects {
 }
 EOF
 
+RUN dnf install -y dnf-plugins-core && \
+    dnf config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo && \
+    sed -i 's/$releasever/9/g' /etc/yum.repos.d/docker-ce.repo && \
+    dnf install -y docker-ce-cli && \
+    dnf clean all
+
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 EXPOSE 8080

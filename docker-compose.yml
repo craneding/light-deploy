@@ -29,6 +29,7 @@ services:
       - artifacts_data:/data/artifacts
       - ssh_data:/data/.ssh
       - logs_data:/data/logs
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   workspace_data:

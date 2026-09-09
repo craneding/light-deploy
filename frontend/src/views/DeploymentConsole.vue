@@ -114,9 +114,18 @@ const terminalContainer = ref<HTMLElement | null>(null)
 let ws: WebSocket | null = null
 let isProgrammaticScroll = false
 
+// 后端定时下发的应用层心跳帧：仅用于保活连接，不记入日志
+const HEARTBEAT_PAYLOAD = '__light_deploy_heartbeat__'
+// 断线重连：指数退避（2s 起，封顶 30s），直到任务结束为止
+const RECONNECT_BASE_DELAY_MS = 2000
+const RECONNECT_MAX_DELAY_MS = 30000
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+const reconnectAttempts = ref(0)
+let disposed = false
+
 const statusType = computed(() => {
   if (status.value === 'Connected' || status.value === 'Success') return 'success'
-  if (status.value === 'Connecting') return 'warning'
+  if (status.value === 'Connecting' || status.value === 'Reconnecting') return 'warning'
   if (status.value === 'Disconnected' || status.value === 'Error' || status.value === 'Failed') return 'danger'
   return 'info'
 })
@@ -125,6 +134,7 @@ const getStatusLabel = () => {
   switch (status.value) {
     case 'Connected': return '实时传输中'
     case 'Connecting': return '正在连接...'
+    case 'Reconnecting': return `连接中断，重连中${reconnectAttempts.value > 0 ? `（第 ${reconnectAttempts.value} 次）` : '...'}`
     case 'Success': return '部署成功'
     case 'Failed': return '部署失败'
     case 'Disconnected': return '已断开连接'
@@ -216,9 +226,61 @@ const checkTaskStatusAndLogs = async () => {
   }
 }
 
-const connectWebSocket = async () => {
+/**
+ * 从服务端回补日志：服务端日志文件是全量真相，直接替换本地显示，
+ * 可补齐断线期间漏掉的行。返回 true 表示任务已结束，无需再重连。
+ */
+const resyncLogsFromServer = async (): Promise<boolean> => {
+  try {
+    const res: any = await request.get(`/deploy-tasks/${taskId}`)
+    const task = res.data || res
+    if (!task) return false
+    taskInfo.value = task
+    if (task.logs) {
+      logs.value = task.logs.split('\n').filter((line: string) => line.trim() !== '')
+      scrollToBottom()
+    }
+    if (task.status === 'SUCCESS' || task.status === 'FAILED' || task.status === 'success' || task.status === 'failed') {
+      status.value = String(task.status).toUpperCase() === 'SUCCESS' ? 'Success' : 'Failed'
+      return true
+    }
+  } catch (error) {
+    console.error('Failed to resync logs from server', error)
+  }
+  return false
+}
+
+const clearReconnectTimer = () => {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+}
+
+/**
+ * 断线后指数退避重连，直到任务结束为止。
+ * 每次重连前先查一次任务状态：已结束则直接展示文件回补的全量日志并停止。
+ */
+const scheduleReconnect = async () => {
+  if (disposed || reconnectTimer) return
+  const finished = await resyncLogsFromServer()
+  if (finished || disposed) return
+  reconnectAttempts.value += 1
+  status.value = 'Reconnecting'
+  logs.value.push(`> 连接中断，${Math.min(RECONNECT_BASE_DELAY_MS * 2 ** (reconnectAttempts.value - 1), RECONNECT_MAX_DELAY_MS) / 1000}s 后第 ${reconnectAttempts.value} 次重连…`)
+  scrollToBottom()
+  const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** (reconnectAttempts.value - 1), RECONNECT_MAX_DELAY_MS)
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    connectWebSocket(true)
+  }, delay)
+}
+
+const connectWebSocket = async (isReconnect = false) => {
+  if (disposed) return
+  clearReconnectTimer()
   const isFinished = await checkTaskStatusAndLogs()
-  if (isFinished) return
+  if (isFinished || disposed) return
 
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   let host = window.location.host
@@ -241,11 +303,24 @@ const connectWebSocket = async () => {
     
     ws.onopen = () => {
       status.value = 'Connected'
-      logs.value.push(`> Connected to deployment stream for task #${taskId}`)
-      scrollToBottom()
+      if (isReconnect) {
+        // 重连成功：用服务端全量日志回补断线期间漏掉的行
+        resyncLogsFromServer().then((finished) => {
+          if (!finished && !disposed) {
+            logs.value.push(`> 已恢复实时流，历史日志已从服务端补齐`)
+            scrollToBottom()
+          }
+        })
+      } else {
+        logs.value.push(`> Connected to deployment stream for task #${taskId}`)
+        scrollToBottom()
+      }
+      reconnectAttempts.value = 0
     }
     
     ws.onmessage = (event) => {
+      // 心跳帧仅用于保活连接，不记入日志
+      if (event.data === HEARTBEAT_PAYLOAD) return
       logs.value.push(event.data)
       scrollToBottom()
       
@@ -257,21 +332,28 @@ const connectWebSocket = async () => {
     }
     
     ws.onclose = () => {
-      if (status.value !== 'Success' && status.value !== 'Failed') {
-        status.value = 'Disconnected'
+      ws = null
+      if (disposed) return
+      if (status.value === 'Success' || status.value === 'Failed') {
+        logs.value.push(`> Stream connection closed.`)
+        scrollToBottom()
+        return
       }
-      logs.value.push(`> Stream connection closed.`)
-      scrollToBottom()
+      // 任务未结束就断线：退避重连（慢任务空闲被代理掐断时自动恢复）
+      scheduleReconnect()
     }
     
     ws.onerror = () => {
-      status.value = 'Error'
+      // 出错后浏览器随后会触发 onclose，重连逻辑统一由 onclose 驱动，这里只记录
       logs.value.push(`> WebSocket connection error.`)
       scrollToBottom()
     }
   } catch (err: any) {
-    ElMessage.error('无法连接到控制台 WebSocket')
-    status.value = 'Error'
+    console.error('Failed to establish console WebSocket', err)
+    // 建连即失败（如网络抖动）：同样走退避重连，直到任务结束
+    if (!disposed && status.value !== 'Success' && status.value !== 'Failed') {
+      scheduleReconnect()
+    }
   }
 }
 
@@ -284,8 +366,11 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  disposed = true
+  clearReconnectTimer()
   if (ws) {
     ws.close()
+    ws = null
   }
 })
 </script>

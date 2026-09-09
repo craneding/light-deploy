@@ -62,6 +62,19 @@ Default credentials in `application.yml`: root/123456, database `light_deploy`.
 - **Frontend build output** goes to `frontend/dist/` - serve via Nginx in production.
 - **Backend `context-path` is `/api`** - all REST endpoints are under `/api/*`.
 - **Forward headers**: Docker deployment must set `server.forward-headers-strategy=framework` (via `JAVA_OPTS` or env) for OAuth `{baseUrl}` to resolve correctly behind Nginx. Already set in `docker-compose.yml`.
+- **Deploy logs**: full logs are written per-record to `{app.log-dir}/deploy/{recordId}.log` (`./logs/deploy/` locally, `/data/logs/deploy/` in Docker via the existing `logs_data` volume). Safe to clean manually, e.g. `find /data/logs/deploy -name "*.log" -mtime +30 -delete`. `deploy_records.logs` in DB holds only the last 200 lines (tail preview); `GET /deploy-tasks/{id}` serves the full file automatically.
+- **Console WebSocket keepalive**: backend `DeployLogWebSocketHandler` sends an app-level heartbeat (`__light_deploy_heartbeat__`) every 25s so idle slow builds aren't killed by proxy timeouts; frontend filters it and auto-reconnects with exponential backoff (2s→30s cap) until the task ends, backfilling missed lines from the log file. Production Nginx **must** still raise WS timeouts, otherwise the 60s default `proxy_read_timeout` will cut idle streams (heartbeat + reconnect are the safety net, not a substitute):
+
+  ```nginx
+  location /api/ws/ {
+      proxy_pass http://backend:8080;
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      proxy_read_timeout 1h;
+      proxy_send_timeout 1h;
+  }
+  ```
 
 ## Docker
 

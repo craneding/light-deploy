@@ -1,5 +1,6 @@
 package com.lightdeploy.backend.websocket;
 
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -13,6 +14,17 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 @Component
 public class DeployLogWebSocketHandler extends TextWebSocketHandler {
+
+    /**
+     * 应用层心跳帧：慢任务长时间无输出时，靠它产生流量，
+     * 防止中间代理（Nginx proxy_read_timeout 默认 60s）掐断空闲连接。
+     * 心跳走 handler 直发，不经过 DeployLogger，因此不会落盘污染日志文件；
+     * 前端 onmessage 负责过滤丢弃。
+     */
+    public static final String HEARTBEAT_PAYLOAD = "__light_deploy_heartbeat__";
+
+    /** 心跳间隔：小于 Nginx 默认 60s 并留余量 */
+    private static final long HEARTBEAT_INTERVAL_MS = 25000;
 
     // Store sessions by task ID: taskId -> list of sessions
     private final Map<String, CopyOnWriteArrayList<WebSocketSession>> taskSessions = new ConcurrentHashMap<>();
@@ -56,6 +68,29 @@ public class DeployLogWebSocketHandler extends TextWebSocketHandler {
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
+                }
+            }
+        }
+    }
+
+    /**
+     * 定时心跳：向所有 open 会话发送心跳帧保活，顺手清理已关闭会话。
+     * 需要 {@code @EnableScheduling}（见 BackendApplication）。
+     */
+    @Scheduled(fixedRate = HEARTBEAT_INTERVAL_MS)
+    public void sendHeartbeat() {
+        for (Map.Entry<String, CopyOnWriteArrayList<WebSocketSession>> entry : taskSessions.entrySet()) {
+            CopyOnWriteArrayList<WebSocketSession> sessions = entry.getValue();
+            sessions.removeIf(session -> !session.isOpen());
+            if (sessions.isEmpty()) {
+                taskSessions.remove(entry.getKey(), sessions);
+                continue;
+            }
+            for (WebSocketSession session : sessions) {
+                try {
+                    session.sendMessage(new TextMessage(HEARTBEAT_PAYLOAD));
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
             }
         }

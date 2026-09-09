@@ -8,6 +8,8 @@ export interface DeployTask {
   profileName?: string
   gitRefType: 'branch' | 'tag' | 'commit'
   gitRef: string
+  /** 本次是否同步到部署目录，不传则沿用项目/环境配置 */
+  syncToDeployDir?: boolean
   status?: 'pending' | 'running' | 'success' | 'failed'
   logs?: string
   operator?: string

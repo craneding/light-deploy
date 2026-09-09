@@ -166,6 +166,7 @@
             style="width: 100%"
             :loading="profileLoading"
             :disabled="!form.projectId"
+            @change="handleProfileChange"
           >
             <el-option
               v-for="item in profileList"
@@ -200,6 +201,19 @@
               :value="item.value"
             />
           </el-select>
+        </el-form-item>
+
+        <el-form-item label="同步到部署目录" prop="syncToDeployDir">
+          <el-switch
+            v-model="form.syncToDeployDir"
+            active-text="同步到服务器"
+            inactive-text="仅构建"
+          />
+          <div class="form-tip">
+            默认跟随当前项目/环境的配置，可按本次任务按需调整。关闭则跳过所有远端步骤（前置脚本/文件同步/后置脚本），仅本地构建并存档产物。
+            <span v-if="effectiveSyncSource">当前默认来源：{{ effectiveSyncSource }}</span>
+            <span v-if="form.syncToDeployDir && !effectiveDeployDir" class="warn-text">（当前项目/环境未配置部署目录，开启后部署将失败）</span>
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -313,6 +327,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import request, { isGitlabReauthError } from '../utils/request'
 import { getItem } from '../utils/storage'
+import { copyText } from '../utils/clipboard'
 import { fetchTasks, createTask, stopTask, type DeployTask } from '../api/task'
 import { fetchGitlabBranches, fetchGitlabTags, fetchGitlabCommits } from '../api/gitlab'
 
@@ -394,7 +409,8 @@ const initialFormState = {
   projectId: undefined as number | undefined,
   profileId: undefined as number | undefined,
   gitRefType: 'branch' as 'branch' | 'tag' | 'commit',
-  gitRef: ''
+  gitRef: '',
+  syncToDeployDir: true as boolean
 }
 
 const form = reactive({ ...initialFormState })
@@ -508,6 +524,45 @@ const getProjectName = (id: number) => {
   return project ? project.name : `项目ID: ${id}`
 }
 
+// 本次“同步到部署目录”默认值：选中环境 > 所属项目 > true
+const getEffectiveSync = (projectId?: number, profileId?: number): boolean => {
+  if (profileId != null) {
+    const profile = profileList.value.find(p => p.id === profileId)
+    if (profile && profile.syncToDeployDir != null) return !!profile.syncToDeployDir
+  }
+  if (projectId != null) {
+    const project = projectList.value.find(p => p.id === projectId)
+    if (project && project.syncToDeployDir != null) return !!project.syncToDeployDir
+  }
+  return true
+}
+
+const getEffectiveDeployDir = (projectId?: number, profileId?: number): string => {
+  if (profileId != null) {
+    const profile = profileList.value.find(p => p.id === profileId)
+    if (profile?.deployDir) return profile.deployDir
+  }
+  if (projectId != null) {
+    const project = projectList.value.find(p => p.id === projectId)
+    if (project?.deployDir) return project.deployDir
+  }
+  return ''
+}
+
+const effectiveSyncSource = computed(() => {
+  if (form.profileId != null) {
+    const profile = profileList.value.find(p => p.id === form.profileId)
+    if (profile && profile.syncToDeployDir != null) return `环境「${profile.name}」`
+  }
+  if (form.projectId != null) {
+    const project = projectList.value.find(p => p.id === form.projectId)
+    if (project) return `项目「${project.name}」默认`
+  }
+  return ''
+})
+
+const effectiveDeployDir = computed(() => getEffectiveDeployDir(form.projectId, form.profileId))
+
 const fetchProfiles = async () => {
   if (!form.projectId) return
   profileLoading.value = true
@@ -559,8 +614,15 @@ const fetchGitRefs = async () => {
 const handleProjectChange = () => {
   form.gitRef = ''
   form.profileId = undefined
+  // 项目切换时，默认值跟随项目配置（环境未选）
+  form.syncToDeployDir = getEffectiveSync(form.projectId, undefined)
   fetchGitRefs()
   fetchProfiles()
+}
+
+const handleProfileChange = () => {
+  // 环境切换时，默认值跟随 环境 > 项目
+  form.syncToDeployDir = getEffectiveSync(form.projectId, form.profileId)
 }
 
 const handleRefTypeChange = () => {
@@ -589,7 +651,8 @@ const submitForm = async (formEl: FormInstance | undefined) => {
           projectId: form.projectId!,
           profileId: form.profileId!,
           gitRefType: form.gitRefType,
-          gitRef: form.gitRef
+          gitRef: form.gitRef,
+          syncToDeployDir: form.syncToDeployDir
         })
         ElMessage.success('任务创建成功')
         dialogVisible.value = false
@@ -649,9 +712,13 @@ const viewErrorLogs = (row: DeployTask) => {
   errorDialogVisible.value = true
 }
 
-const copyErrorLogs = () => {
-  navigator.clipboard.writeText(currentErrorLogs.value)
-  ElMessage.success('错误日志已复制到剪贴板')
+const copyErrorLogs = async () => {
+  try {
+    await copyText(currentErrorLogs.value)
+    ElMessage.success('错误日志已复制到剪贴板')
+  } catch (error: any) {
+    ElMessage.error(error?.message || '复制失败')
+  }
 }
 
 const viewArtifacts = async (row: DeployTask) => {
@@ -693,9 +760,17 @@ const downloadAllArtifacts = () => {
   window.open(url, '_blank')
 }
 
-const copyScpCommand = () => {
-  navigator.clipboard.writeText(scpCommand.value)
-  ElMessage.success('SCP 命令已复制到剪贴板')
+const copyScpCommand = async () => {
+  if (!scpCommand.value) {
+    ElMessage.warning('暂无可复制的命令')
+    return
+  }
+  try {
+    await copyText(scpCommand.value)
+    ElMessage.success('SCP 命令已复制到剪贴板')
+  } catch (error: any) {
+    ElMessage.error(error?.message || '复制失败')
+  }
 }
 
 onMounted(() => {
@@ -841,6 +916,18 @@ onMounted(() => {
 
 .custom-radio-group :deep(.el-radio-button__inner) {
   width: 100%;
+}
+
+.form-tip {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.6;
+  margin-top: 6px;
+}
+
+.warn-text {
+  color: #b45309;
+  font-weight: 600;
 }
 
 /* Error Window */

@@ -17,6 +17,8 @@ public class DeployRecord {
     private Integer triggerUserId;
     private String branch;
     private String commitId;
+    /** 本次任务是否同步到部署目录，NULL 表示沿用项目/环境配置 */
+    private Boolean syncToDeployDir;
     
     private String status; // PENDING, RUNNING, SUCCESS, FAILED
     private String logs; // Or logFilePath

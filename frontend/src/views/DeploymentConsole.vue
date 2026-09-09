@@ -100,6 +100,7 @@ import { useUserStore } from '../store/user'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, CopyDocument, Delete, Bottom } from '@element-plus/icons-vue'
 import request from '../utils/request'
+import { copyText } from '../utils/clipboard'
 
 const route = useRoute()
 const router = useRouter()
@@ -193,9 +194,13 @@ const toggleAutoScroll = () => {
   }
 }
 
-const copyLogs = () => {
-  navigator.clipboard.writeText(logs.value.join('\n'))
-  ElMessage.success('全部日志已复制到剪贴板')
+const copyLogs = async () => {
+  try {
+    await copyText(logs.value.join('\n'))
+    ElMessage.success('全部日志已复制到剪贴板')
+  } catch (error: any) {
+    ElMessage.error(error?.message || '复制失败')
+  }
 }
 
 const clearLogs = () => {

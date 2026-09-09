@@ -173,10 +173,22 @@ public class DeployEngineService {
                         ? profile.getBuildOutputDir() : project.getBuildOutputDir();
                 String preScript = (profile.getPreScript() != null && !profile.getPreScript().isEmpty())
                         ? profile.getPreScript() : project.getPreScript();
-                Boolean syncToDeployDir = profile.getSyncToDeployDir() != null ? profile.getSyncToDeployDir() : project.getSyncToDeployDir();
-                if (syncToDeployDir == null) {
+                Boolean syncToDeployDir;
+                String syncSource;
+                if (record.getSyncToDeployDir() != null) {
+                    syncToDeployDir = record.getSyncToDeployDir();
+                    syncSource = "本次任务单次选择";
+                } else if (profile.getSyncToDeployDir() != null) {
+                    syncToDeployDir = profile.getSyncToDeployDir();
+                    syncSource = "环境配置";
+                } else if (project.getSyncToDeployDir() != null) {
+                    syncToDeployDir = project.getSyncToDeployDir();
+                    syncSource = "项目默认配置";
+                } else {
                     syncToDeployDir = true; // Default to true if not specified
+                    syncSource = "系统默认";
                 }
+                logger.log(">>> 是否同步到部署目录: " + (syncToDeployDir ? "是" : "否") + "（来源：" + syncSource + "）");
                 String deployDir = (profile.getDeployDir() != null && !profile.getDeployDir().isEmpty())
                         ? profile.getDeployDir() : project.getDeployDir();
                 String postScript = (profile.getPostScript() != null && !profile.getPostScript().isEmpty())
@@ -219,46 +231,51 @@ public class DeployEngineService {
                     }
                 }
 
-                // 2. Execute Pre-script on Remote Server
-                if (preScript != null && !preScript.isEmpty()) {
-                    if (server == null) throw new RuntimeException("Pre-script requires a server but none is associated with this profile.");
-                    logger.log(">>> 2. Executing Pre-Script on Remote Server");
-                    executeRemoteCommand(server, preScript, logger);
-                }
-
-                // 3. Sync files to remote via rsync
-                if (syncToDeployDir && deployDir != null && !deployDir.isEmpty()) {
-                    if (server == null) throw new RuntimeException("Syncing to deploy directory requires a server but none is associated with this profile.");
-                    logger.log(">>> 3. Syncing files via rsync to " + server.getIp() + ":" + deployDir);
-
-                    String sourcePath = workspaceDir;
-                    if (buildOutputDir != null && !buildOutputDir.trim().isEmpty()) {
-                        sourcePath = workspaceDir + "/" + buildOutputDir;
+                // 本次任务选择仅构建时，跳过所有远端步骤（前置脚本/文件同步/后置脚本），只做本地构建+产物存档
+                if (!syncToDeployDir) {
+                    logger.log(">>> 本次任务选择仅构建，跳过所有远端步骤（前置脚本/文件同步/后置脚本）。");
+                } else {
+                    // 2. Execute Pre-script on Remote Server
+                    if (preScript != null && !preScript.isEmpty()) {
+                        if (server == null) throw new RuntimeException("Pre-script requires a server but none is associated with this profile.");
+                        logger.log(">>> 2. Executing Pre-Script on Remote Server");
+                        executeRemoteCommand(server, preScript, logger);
                     }
 
-                    // Ensure source path ends with / for rsync to copy contents rather than the directory itself
-                    File sourceFileForRsync = new File(sourcePath);
-                    if (sourceFileForRsync.isDirectory() && !sourcePath.endsWith("/")) {
-                        sourcePath += "/";
+                    // 3. Sync files to remote via rsync
+                    if (deployDir != null && !deployDir.isEmpty()) {
+                        if (server == null) throw new RuntimeException("Syncing to deploy directory requires a server but none is associated with this profile.");
+                        logger.log(">>> 3. Syncing files via rsync to " + server.getIp() + ":" + deployDir);
+
+                        String sourcePath = workspaceDir;
+                        if (buildOutputDir != null && !buildOutputDir.trim().isEmpty()) {
+                            sourcePath = workspaceDir + "/" + buildOutputDir;
+                        }
+
+                        // Ensure source path ends with / for rsync to copy contents rather than the directory itself
+                        File sourceFileForRsync = new File(sourcePath);
+                        if (sourceFileForRsync.isDirectory() && !sourcePath.endsWith("/")) {
+                            sourcePath += "/";
+                        }
+
+                        // Create rsync command. We now rely on passwordless SSH.
+                        int port = server.getPort() != null ? server.getPort() : 22;
+                        String keyPath = PathUtils.resolve(sshDir) + "/id_rsa";
+                        // Ensure private key has correct permissions (SSH requires 0600)
+                        executeLocalCommand("chmod 600 " + keyPath, logger, workspaceDir);
+                        String sshCmd = "ssh -p " + port + " -o StrictHostKeyChecking=no -i " + keyPath;
+                        String rsyncCmd = String.format("rsync -avz --delete -e \"%s\" %s %s@%s:%s",
+                                sshCmd, sourcePath, server.getUsername(), server.getIp(), deployDir);
+
+                        executeLocalCommand(rsyncCmd, logger, workspaceDir);
                     }
 
-                    // Create rsync command. We now rely on passwordless SSH.
-                    int port = server.getPort() != null ? server.getPort() : 22;
-                    String keyPath = PathUtils.resolve(sshDir) + "/id_rsa";
-                    // Ensure private key has correct permissions (SSH requires 0600)
-                    executeLocalCommand("chmod 600 " + keyPath, logger, workspaceDir);
-                    String sshCmd = "ssh -p " + port + " -o StrictHostKeyChecking=no -i " + keyPath;
-                    String rsyncCmd = String.format("rsync -avz --delete -e \"%s\" %s %s@%s:%s",
-                            sshCmd, sourcePath, server.getUsername(), server.getIp(), deployDir);
-
-                    executeLocalCommand(rsyncCmd, logger, workspaceDir);
-                }
-
-                // 4. Execute Post-script on Remote Server
-                if (postScript != null && !postScript.isEmpty()) {
-                    if (server == null) throw new RuntimeException("Post-script requires a server but none is associated with this profile.");
-                    logger.log(">>> 4. Executing Post-Script on Remote Server");
-                    executeRemoteCommand(server, postScript, logger);
+                    // 4. Execute Post-script on Remote Server
+                    if (postScript != null && !postScript.isEmpty()) {
+                        if (server == null) throw new RuntimeException("Post-script requires a server but none is associated with this profile.");
+                        logger.log(">>> 4. Executing Post-Script on Remote Server");
+                        executeRemoteCommand(server, postScript, logger);
+                    }
                 }
 
                 logger.log("=== Deployment Completed Successfully ===");

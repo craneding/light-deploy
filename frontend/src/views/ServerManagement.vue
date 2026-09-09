@@ -151,6 +151,7 @@ import { Plus, Search, Monitor } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import request from '../utils/request'
+import { copyText } from '../utils/clipboard'
 
 interface Server {
   id?: number
@@ -268,9 +269,13 @@ const handleDelete = (row: Server) => {
   }).catch(() => {})
 }
 
-const copyIp = (ip: string) => {
-  navigator.clipboard.writeText(ip)
-  ElMessage.success(`IP 地址 ${ip} 已复制`)
+const copyIp = async (ip: string) => {
+  try {
+    await copyText(ip)
+    ElMessage.success(`IP 地址 ${ip} 已复制`)
+  } catch (error: any) {
+    ElMessage.error(error?.message || '复制失败')
+  }
 }
 
 const submitForm = async (formEl: FormInstance | undefined) => {

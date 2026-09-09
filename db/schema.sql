@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS deploy_records (
     status VARCHAR(50) DEFAULT 'PENDING' COMMENT '当前部署状态',
     branch VARCHAR(100) COMMENT '部署分支',
     commit_id VARCHAR(100) COMMENT '部署的 Commit Hash',
+    sync_to_deploy_dir TINYINT(1) NULL COMMENT '本次是否同步到部署目录，NULL表示沿用项目/环境配置',
     logs LONGTEXT COMMENT '部署日志输出内容',
     start_time TIMESTAMP NULL COMMENT '开始时间',
     end_time TIMESTAMP NULL COMMENT '结束时间',

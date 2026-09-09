@@ -112,6 +112,7 @@ public class DeployTaskController {
             }
             response.setStatus(record.getStatus());
             response.setLogs(record.getLogs());
+            response.setSyncToDeployDir(record.getSyncToDeployDir());
             response.setStartTime(record.getStartTime());
             response.setEndTime(record.getEndTime());
             if (record.getTriggerUserId() != null) {
@@ -169,6 +170,7 @@ public class DeployTaskController {
         } else {
             response.setLogs(record.getLogs());
         }
+        response.setSyncToDeployDir(record.getSyncToDeployDir());
         response.setStartTime(record.getStartTime());
         response.setEndTime(record.getEndTime());
         if (record.getTriggerUserId() != null) {
@@ -230,6 +232,8 @@ public class DeployTaskController {
         } else {
             record.setBranch(request.getGitRef());
         }
+        // 本次任务是否同步到部署目录：NULL 表示沿用项目/环境配置
+        record.setSyncToDeployDir(request.getSyncToDeployDir());
         record.setStatus("PENDING");
         record.setCreatedAt(LocalDateTime.now());
         record.setUpdatedAt(LocalDateTime.now());
@@ -245,6 +249,7 @@ public class DeployTaskController {
         response.setGitRefType(request.getGitRefType());
         response.setGitRef(request.getGitRef());
         response.setStatus(record.getStatus());
+        response.setSyncToDeployDir(record.getSyncToDeployDir());
         if (record.getTriggerUserId() != null) {
             User user = userMapper.selectById(record.getTriggerUserId());
             if (user != null) {

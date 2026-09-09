@@ -14,7 +14,9 @@ import com.lightdeploy.backend.entity.DeployProfile;
 import com.lightdeploy.backend.service.IDeployProfileService;
 import com.lightdeploy.backend.entity.User;
 import com.lightdeploy.backend.mapper.UserMapper;
+import com.lightdeploy.backend.util.DeployLogFiles;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -46,6 +48,12 @@ public class DeployTaskController {
 
     @Autowired
     private UserMapper userMapper;
+
+    @Value("${app.log-dir:./logs}")
+    private String logDir;
+
+    /** 历史日志接口返回的最大行数，全量日志在本地文件，此处封顶防 OOM */
+    private static final int LOG_FILE_MAX_LINES = 10000;
 
     @GetMapping
     public ResponseEntity<?> getAll(
@@ -154,7 +162,13 @@ public class DeployTaskController {
             response.setGitRef(record.getBranch());
         }
         response.setStatus(record.getStatus());
-        response.setLogs(record.getLogs());
+        // 历史日志优先读本地全量文件（每个任务独立一个文件），缺失时回退到 DB 尾部摘要
+        String fileLogs = DeployLogFiles.readFull(logDir, id, LOG_FILE_MAX_LINES);
+        if (fileLogs != null && !fileLogs.isEmpty()) {
+            response.setLogs(fileLogs);
+        } else {
+            response.setLogs(record.getLogs());
+        }
         response.setStartTime(record.getStartTime());
         response.setEndTime(record.getEndTime());
         if (record.getTriggerUserId() != null) {

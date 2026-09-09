@@ -72,19 +72,36 @@ public class GitLabTokenService {
     }
 
     /**
-     * 强制用 refresh_token 换新并持久化，返回新 access token。
+     * 用 refresh_token 换新并持久化，返回新 access token。
+     * 非强制模式下带双重检查（等待锁期间可能已被其他线程刷新）；
+     * GitLab API 返回 401 invalid_token 时必须用强制模式，否则
+     * token_expires_at 为空/未来值会导致直接返回旧 token、重试必败。
      *
      * @throws GitLabTokenExpiredException 无 refresh token 或刷新失败时
      */
     public String refreshAccessToken(Integer userId) {
+        return refreshAccessToken(userId, false);
+    }
+
+    /**
+     * 强制用 refresh_token 换新并持久化，返回新 access token。
+     * 供 GitLab API 401 invalid_token 后的单次重试使用，跳过过期时间检查。
+     *
+     * @throws GitLabTokenExpiredException 无 refresh token 或刷新失败时
+     */
+    public String forceRefreshAccessToken(Integer userId) {
+        return refreshAccessToken(userId, true);
+    }
+
+    private String refreshAccessToken(Integer userId, boolean force) {
         Object lock = refreshLocks.computeIfAbsent(userId, k -> new Object());
         synchronized (lock) {
             User user = userMapper.selectById(userId);
             if (user == null || user.getAccessToken() == null) {
                 throw new GitLabTokenExpiredException("GitLab 授权缺失，请重新登录后再试。");
             }
-            // 双重检查：等待锁期间可能已被其他线程刷新
-            if (!isExpiringSoon(user)) {
+            // 双重检查：等待锁期间可能已被其他线程刷新；强制刷新跳过该检查
+            if (!force && !isExpiringSoon(user)) {
                 return user.getAccessToken();
             }
             if (user.getRefreshToken() == null || user.getRefreshToken().isEmpty()) {

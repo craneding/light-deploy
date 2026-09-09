@@ -324,7 +324,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { Plus, Setting, Edit, Delete, Search, Monitor, Folder } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import request from '../utils/request'
+import request, { isGitlabReauthError } from '../utils/request'
 import { fetchGitlabProjects, type GitlabProject } from '../api/gitlab'
 
 interface Project {
@@ -472,7 +472,10 @@ const searchGitlabProjects = async (query: string) => {
       gitlabProjects.value = Array.isArray(res) ? res : (res.data || [])
     }
   } catch (error: any) {
-    ElMessage.error('获取Gitlab项目失败')
+    // GitLab 授权过期已由拦截器弹重登框，此处不再重复提示
+    if (!isGitlabReauthError(error)) {
+      ElMessage.error('获取Gitlab项目失败')
+    }
   } finally {
     gitlabLoading.value = false
   }

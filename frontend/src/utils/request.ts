@@ -30,6 +30,23 @@ const promptGitlabReauth = (detail?: string) => {
   })
 }
 
+/** 拦截器已处理 GitLab 重登的错误标记，调用处据此不再重复 ElMessage */
+export const GITLAB_REAUTH_FLAG = 'gitlabReauthHandled'
+
+export const isGitlabReauthError = (error: any) =>
+  !!error && (error as any)[GITLAB_REAUTH_FLAG] === true
+
+const toGitlabReauthError = (detail?: string) => {
+  const err = new Error(detail || 'GitLab 授权已过期，请重新登录 GitLab')
+  ;(err as any)[GITLAB_REAUTH_FLAG] = true
+  return err
+}
+
+/** 兼容旧后端/漏网 500：正文里还带着 GitLab 401 原文时同样视为授权过期 */
+const isLegacyGitlabTokenError = (msg: string) =>
+  /invalid_token/i.test(msg) ||
+  /Error fetching (branches|projects|tags|commits)/i.test(msg)
+
 const request: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/light-deploy/api',
   timeout: 10000,
@@ -87,10 +104,15 @@ request.interceptors.response.use(
     // GitLab OAuth 授权过期：与应用会话严格区分，只引导重登 GitLab，不清 token、不跳登录
     if (status === 440 || responseData?.message === 'GITLAB_TOKEN_EXPIRED') {
       promptGitlabReauth(responseData?.detail)
-      return Promise.reject(new Error(responseData?.detail || 'GitLab 授权已过期，请重新登录 GitLab'))
+      return Promise.reject(toGitlabReauthError(responseData?.detail))
     }
 
     const errorMsg = typeof responseData === 'string' ? responseData : (responseData?.message || error.message || 'Request Error');
+    // 兜底：旧后端把 GitLab 401 原文透成 500 字符串时，不裸显英文，同样弹重登框
+    if (typeof errorMsg === 'string' && isLegacyGitlabTokenError(errorMsg)) {
+      promptGitlabReauth()
+      return Promise.reject(toGitlabReauthError())
+    }
     ElMessage.error(errorMsg)
     return Promise.reject(error)
   }

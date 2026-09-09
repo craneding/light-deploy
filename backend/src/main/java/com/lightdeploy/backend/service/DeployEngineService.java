@@ -104,6 +104,8 @@ public class DeployEngineService {
 
         synchronized void log(String message) {
             String line = message == null ? "" : message;
+            // 脱敏：git 输出可能回显 https://oauth2:TOKEN@host，落盘/推送前统一打码
+            line = line.replaceAll("(https?://oauth2:)[^@\\s]+@", "$1***@");
             logWebSocketHandler.sendLog(taskId, line);
             if (writer != null) {
                 try {
@@ -409,7 +411,7 @@ public class DeployEngineService {
         throw new GitLabTokenExpiredException("GitLab 授权已过期，请重新登录后再发起部署。");
     }
 
-    /** 取 GitLab 项目信息：401 invalid_token 时强制刷新供 token 用户后只重试一次 */
+    /** 取 GitLab 项目信息：401 invalid_token 时强制刷新供 token 用户后只重试一次，仍失败转 440 */
     private Map<String, Object> fetchGitLabProject(RestTemplate restTemplate, String gitlabApiUrl,
                                                    Integer tokenUserId) {
         try {
@@ -420,8 +422,12 @@ public class DeployEngineService {
             if (body == null || !body.contains("invalid_token")) {
                 throw e;
             }
-            String newToken = gitLabTokenService.refreshAccessToken(tokenUserId);
-            return doFetchGitLabProject(restTemplate, gitlabApiUrl, newToken);
+            String newToken = gitLabTokenService.forceRefreshAccessToken(tokenUserId);
+            try {
+                return doFetchGitLabProject(restTemplate, gitlabApiUrl, newToken);
+            } catch (org.springframework.web.client.HttpClientErrorException.Unauthorized retry) {
+                throw new GitLabTokenExpiredException("GitLab 授权已过期，请重新登录后再发起部署。", retry);
+            }
         }
     }
 

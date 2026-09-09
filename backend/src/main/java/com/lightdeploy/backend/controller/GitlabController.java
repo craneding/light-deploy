@@ -4,6 +4,8 @@ import com.lightdeploy.backend.entity.User;
 import com.lightdeploy.backend.exception.GitLabTokenExpiredException;
 import com.lightdeploy.backend.mapper.UserMapper;
 import com.lightdeploy.backend.service.GitLabTokenService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
@@ -34,6 +36,8 @@ public class GitlabController {
     @Autowired
     private GitLabTokenService gitLabTokenService;
 
+    private static final Logger log = LoggerFactory.getLogger(GitlabController.class);
+
     @org.springframework.beans.factory.annotation.Value("${gitlab.url}")
     private String gitlabUrl;
 
@@ -42,6 +46,7 @@ public class GitlabController {
 
     /**
      * 带 GitLab token 自动刷新 + 401 单次重试的请求。
+     * 严格使用当前登录用户，不兜底其他用户。
      * token 彻底失效时抛 GitLabTokenExpiredException（→ HTTP 440），
      * 与应用自身会话过期（HTTP 401）严格区分，避免前端误登出。
      */
@@ -52,9 +57,14 @@ public class GitlabController {
             return restTemplate.exchange(url, HttpMethod.GET, authEntity(token), responseType);
         } catch (HttpClientErrorException.Unauthorized e) {
             if (isInvalidToken(e)) {
-                // 过期竞态：检查时未过期、调用时刚过期 → 强制刷新后只重试一次
-                String newToken = gitLabTokenService.refreshAccessToken(user.getId());
-                return restTemplate.exchange(url, HttpMethod.GET, authEntity(newToken), responseType);
+                // 过期竞态 / token_expires_at 缺失 / GitLab 侧提前过期 → 强制刷新后只重试一次
+                String newToken = gitLabTokenService.forceRefreshAccessToken(user.getId());
+                try {
+                    return restTemplate.exchange(url, HttpMethod.GET, authEntity(newToken), responseType);
+                } catch (HttpClientErrorException.Unauthorized retry) {
+                    // 刷新后仍 401：refresh_token 也已失效，只能重新走 GitLab OAuth
+                    throw new GitLabTokenExpiredException("GitLab 授权已过期，请重新登录后再试。", retry);
+                }
             }
             throw e;
         }
@@ -118,7 +128,9 @@ public class GitlabController {
         } catch (GitLabTokenExpiredException e) {
             throw e;
         } catch (Exception e) {
-            return ResponseEntity.status(500).body("Error fetching projects from GitLab: " + e.getMessage());
+            // 不把 GitLab 401 原文 / token 片段回显给前端，详情只记服务端日志
+            log.warn("Failed to fetch GitLab projects for user {}: {}", user.getId(), e.getMessage());
+            return ResponseEntity.status(500).body("获取 GitLab 项目列表失败，请稍后重试。");
         }
     }
 
@@ -134,7 +146,8 @@ public class GitlabController {
         } catch (GitLabTokenExpiredException e) {
             throw e;
         } catch (Exception e) {
-            return ResponseEntity.status(500).body("Error fetching branches: " + e.getMessage());
+            log.warn("Failed to fetch GitLab branches for user {} project {}: {}", user.getId(), projectId, e.getMessage());
+            return ResponseEntity.status(500).body("获取分支列表失败，请稍后重试。");
         }
     }
 
@@ -150,7 +163,8 @@ public class GitlabController {
         } catch (GitLabTokenExpiredException e) {
             throw e;
         } catch (Exception e) {
-            return ResponseEntity.status(500).body("Error fetching tags: " + e.getMessage());
+            log.warn("Failed to fetch GitLab tags for user {} project {}: {}", user.getId(), projectId, e.getMessage());
+            return ResponseEntity.status(500).body("获取标签列表失败，请稍后重试。");
         }
     }
 
@@ -170,7 +184,8 @@ public class GitlabController {
         } catch (GitLabTokenExpiredException e) {
             throw e;
         } catch (Exception e) {
-            return ResponseEntity.status(500).body("Error fetching commits: " + e.getMessage());
+            log.warn("Failed to fetch GitLab commits for user {} project {}: {}", user.getId(), projectId, e.getMessage());
+            return ResponseEntity.status(500).body("获取提交记录失败，请稍后重试。");
         }
     }
 }

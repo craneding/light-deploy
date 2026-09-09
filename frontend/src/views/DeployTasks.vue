@@ -311,7 +311,7 @@ import { useRouter } from 'vue-router'
 import { Plus, Document, Search, FolderOpened, CopyDocument, Refresh, DocumentCopy, User, Download } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import request from '../utils/request'
+import request, { isGitlabReauthError } from '../utils/request'
 import { getItem } from '../utils/storage'
 import { fetchTasks, createTask, stopTask, type DeployTask } from '../api/task'
 import { fetchGitlabBranches, fetchGitlabTags, fetchGitlabCommits } from '../api/gitlab'
@@ -546,7 +546,10 @@ const fetchGitRefs = async () => {
       gitRefs.value = (res.data || res || []).map((c: any) => ({ label: `${c.short_id} - ${c.title}`, value: c.id }))
     }
   } catch (error: any) {
-    ElMessage.error('获取Git引用失败')
+    // GitLab 授权过期已由拦截器弹重登框，此处不再重复提示，仅清空并保留表单状态
+    if (!isGitlabReauthError(error)) {
+      ElMessage.error('获取Git引用失败')
+    }
     gitRefs.value = []
   } finally {
     gitLoading.value = false

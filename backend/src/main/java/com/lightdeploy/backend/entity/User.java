@@ -18,6 +18,8 @@ public class User {
     private String email;
     private String avatarUrl;
     private String accessToken;
+    private String refreshToken;
+    private LocalDateTime tokenExpiresAt;
     
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

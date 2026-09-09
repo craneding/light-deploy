@@ -42,11 +42,22 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         User existingUser = userMapper.selectOne(new QueryWrapper<User>().eq("gitlab_id", gitlabId));
 
+        // access token 过期时间（refresh token 由 success handler 经 authorized client 持久化，
+        // 此处 OAuth2UserRequest 拿不到）；老数据没有该时间则后续靠 401 触发刷新重试
+        LocalDateTime tokenExpiresAt = null;
+        if (userRequest.getAccessToken().getExpiresAt() != null) {
+            tokenExpiresAt = LocalDateTime.ofInstant(
+                    userRequest.getAccessToken().getExpiresAt(), java.time.ZoneId.systemDefault());
+        }
+
         if (existingUser != null) {
             existingUser.setUsername(username);
             existingUser.setEmail(email);
             existingUser.setAvatarUrl(avatarUrl);
             existingUser.setAccessToken(accessToken);
+            if (tokenExpiresAt != null) {
+                existingUser.setTokenExpiresAt(tokenExpiresAt);
+            }
             existingUser.setUpdatedAt(LocalDateTime.now());
             userMapper.updateById(existingUser);
         } else {
@@ -56,6 +67,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             newUser.setEmail(email);
             newUser.setAvatarUrl(avatarUrl);
             newUser.setAccessToken(accessToken);
+            newUser.setTokenExpiresAt(tokenExpiresAt);
             newUser.setCreatedAt(LocalDateTime.now());
             newUser.setUpdatedAt(LocalDateTime.now());
             userMapper.insert(newUser);

@@ -8,6 +8,7 @@ import com.lightdeploy.backend.entity.DeployTask;
 import com.lightdeploy.backend.entity.DeployProfile;
 import com.lightdeploy.backend.entity.Server;
 import com.lightdeploy.backend.entity.User;
+import com.lightdeploy.backend.exception.GitLabTokenExpiredException;
 import com.lightdeploy.backend.util.DeployLogFiles;
 import com.lightdeploy.backend.util.PathUtils;
 import com.lightdeploy.backend.websocket.DeployLogWebSocketHandler;
@@ -56,6 +57,9 @@ public class DeployEngineService {
 
     @Autowired
     private DeployLogWebSocketHandler logWebSocketHandler;
+
+    @Autowired
+    private GitLabTokenService gitLabTokenService;
 
     @Value("${gitlab.url}")
     private String gitlabUrl;
@@ -131,7 +135,7 @@ public class DeployEngineService {
     }
 
     @Async
-    public void executeDeploy(DeployTask task, DeployRecord record) {
+    public void executeDeploy(DeployTask task, DeployRecord record, Integer triggerUserId) {
         String taskIdStr = String.valueOf(record.getId());
         File logFile = DeployLogFiles.resolve(logDir, record.getId());
 
@@ -178,7 +182,7 @@ public class DeployEngineService {
 
                 // 0. Fetch Gitlab Project Info and Clone/Checkout code
                 logger.log(">>> 0. Preparing Source Code from GitLab");
-                String workspaceDir = prepareSourceCode(project.getGitlabProjectId(), record, logger);
+                String workspaceDir = prepareSourceCode(project.getGitlabProjectId(), record, logger, triggerUserId);
 
                 // 1. Execute Local Build Script
                 if (buildScript != null && !buildScript.isEmpty()) {
@@ -258,7 +262,11 @@ public class DeployEngineService {
                 logger.log("=== Deployment Completed Successfully ===");
                 record.setStatus("SUCCESS");
             } catch (Exception e) {
-                String errorMsg = "=== Deployment Failed: " + e.getMessage() + " ===";
+                // GitLab 授权失效给明确中文提示，不再裸露 401 JSON
+                String reason = (e instanceof GitLabTokenExpiredException)
+                        ? "GitLab 授权已过期，请重新登录后再发起部署。"
+                        : String.valueOf(e.getMessage());
+                String errorMsg = "=== Deployment Failed: " + reason + " ===";
                 try {
                     logger.log(errorMsg);
                 } catch (Exception ignored) {
@@ -374,29 +382,68 @@ public class DeployEngineService {
         }
     }
 
-    private String prepareSourceCode(Integer gitlabProjectId, DeployRecord record, DeployLogger logger) throws Exception {
-        // 1. Get Project info from GitLab API to get HTTP URL
-        // We will just use the first user's token for now, or you should pass the token in context.
-        User user = userMapper.selectList(null).stream().filter(u -> u.getAccessToken() != null).findFirst().orElse(null);
+    /**
+     * 部署用 token 归属解析：优先触发用户（经自动刷新），其授权彻底失效时
+     * 兜底库内任意可用用户，保证单用户/旧数据场景不断；都不行则抛明确异常。
+     * 返回实际提供 token 的用户 ID，后续 401 重试刷新该用户。
+     */
+    private Integer resolveDeployTokenUserId(Integer triggerUserId, DeployLogger logger) {
+        if (triggerUserId != null) {
+            try {
+                gitLabTokenService.getValidAccessToken(triggerUserId);
+                return triggerUserId;
+            } catch (GitLabTokenExpiredException e) {
+                logger.log("[WARNING] 触发用户的 GitLab 授权已失效，尝试使用其他可用用户授权。");
+            }
+        }
+        for (User candidate : userMapper.selectList(null)) {
+            if (candidate.getAccessToken() == null || candidate.getAccessToken().isEmpty()) {
+                continue;
+            }
+            try {
+                gitLabTokenService.getValidAccessToken(candidate.getId());
+                return candidate.getId();
+            } catch (GitLabTokenExpiredException ignored) {
+            }
+        }
+        throw new GitLabTokenExpiredException("GitLab 授权已过期，请重新登录后再发起部署。");
+    }
+
+    /** 取 GitLab 项目信息：401 invalid_token 时强制刷新供 token 用户后只重试一次 */
+    private Map<String, Object> fetchGitLabProject(RestTemplate restTemplate, String gitlabApiUrl,
+                                                   Integer tokenUserId) {
+        try {
+            return doFetchGitLabProject(restTemplate, gitlabApiUrl,
+                    gitLabTokenService.getValidAccessToken(tokenUserId));
+        } catch (org.springframework.web.client.HttpClientErrorException.Unauthorized e) {
+            String body = e.getResponseBodyAsString();
+            if (body == null || !body.contains("invalid_token")) {
+                throw e;
+            }
+            String newToken = gitLabTokenService.refreshAccessToken(tokenUserId);
+            return doFetchGitLabProject(restTemplate, gitlabApiUrl, newToken);
+        }
+    }
+
+    private Map<String, Object> doFetchGitLabProject(RestTemplate restTemplate, String gitlabApiUrl, String accessToken) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(accessToken);
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                gitlabApiUrl, HttpMethod.GET, entity, new ParameterizedTypeReference<Map<String, Object>>() {});
+        return response.getBody();
+    }
+
+    private String prepareSourceCode(Integer gitlabProjectId, DeployRecord record, DeployLogger logger,
+                                       Integer triggerUserId) throws Exception {
+        // 优先使用触发用户的 token（自动刷新），其不可用时兜底库内任意可用用户，保证单用户部署不断
+        Integer tokenUserId = resolveDeployTokenUserId(triggerUserId, logger);
 
         String gitlabApiUrl = gitlabUrl + "/api/v4/projects/" + gitlabProjectId;
 
         RestTemplate restTemplate = new RestTemplate();
-        HttpHeaders headers = new HttpHeaders();
-        // Fallback: If we don't have a user token here, we need a way to authenticate.
-        // In a real scenario, the token should be passed down or stored securely per project/user.
-        // For demonstration, let's assume we can get a valid user from the DB.
-        if (user != null && user.getAccessToken() != null) {
-            headers.setBearerAuth(user.getAccessToken());
-        } else {
-            throw new RuntimeException("No valid GitLab access token found to clone repository.");
-        }
 
-        HttpEntity<String> entity = new HttpEntity<>(headers);
-        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
-                gitlabApiUrl, HttpMethod.GET, entity, new ParameterizedTypeReference<Map<String, Object>>() {});
-
-        Map<String, Object> projectData = response.getBody();
+        Map<String, Object> projectData = fetchGitLabProject(restTemplate, gitlabApiUrl, tokenUserId);
         if (projectData == null || !projectData.containsKey("http_url_to_repo")) {
             throw new RuntimeException("Could not retrieve repository URL from GitLab.");
         }
@@ -404,7 +451,8 @@ public class DeployEngineService {
         String repoUrl = (String) projectData.get("http_url_to_repo");
         // Inject token into URL for basic auth clone (OAuth2 token can be used as username oauth2 with token as password, or simply as password with empty user)
         // Format: https://oauth2:TOKEN@gitlab.example.com/group/project.git
-        String token = headers.getFirst(HttpHeaders.AUTHORIZATION).substring(7);
+        // 重新读取最新 token（401 重试中可能已刷新）
+        String token = gitLabTokenService.getValidAccessToken(tokenUserId);
         String authRepoUrl = repoUrl;
         if (authRepoUrl.startsWith("https://")) {
             authRepoUrl = authRepoUrl.replace("https://", "https://oauth2:" + token + "@");

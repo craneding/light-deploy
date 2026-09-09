@@ -50,6 +50,12 @@ mysql -u root -p < db/schema.sql     # creates light_deploy database + tables
 
 Default credentials in `application.yml`: root/123456, database `light_deploy`.
 
+**Existing deployments** must add the GitLab token-refresh columns manually (added for auto-refresh of the 2h GitLab OAuth token vs the 1-day app JWT):
+
+```sql
+ALTER TABLE users ADD COLUMN refresh_token VARCHAR(512), ADD COLUMN token_expires_at TIMESTAMP NULL;
+```
+
 ## Gotchas
 
 - **OAuth frontend redirect**: `OAuth2AuthenticationSuccessHandler.java:41` redirects to `{app.frontend-url}/login/success`. Default is `http://localhost:3000`, override via `APP_FRONTEND_URL` env var for Docker.
@@ -62,6 +68,7 @@ Default credentials in `application.yml`: root/123456, database `light_deploy`.
 - **Frontend build output** goes to `frontend/dist/` - serve via Nginx in production.
 - **Backend `context-path` is `/api`** - all REST endpoints are under `/api/*`.
 - **Forward headers**: Docker deployment must set `server.forward-headers-strategy=framework` (via `JAVA_OPTS` or env) for OAuth `{baseUrl}` to resolve correctly behind Nginx. Already set in `docker-compose.yml`.
+- **GitLab token auto-refresh**: `users` holds `access_token` + `refresh_token` + `token_expires_at`. `GitLabTokenService` refreshes within 5 min of expiry and retries once on `invalid_token` 401 races. Unrecoverable expiry throws `GitLabTokenExpiredException` → HTTP 440 `GITLAB_TOKEN_EXPIRED` (never 401). Frontend only logs out on HTTP 401 (genuine app-JWT expiry); 440 opens a re-auth confirm redirecting to `/oauth2/authorization/gitlab` without clearing the app token. Deploys use the triggering user's token first, falling back to any usable user.
 - **Deploy logs**: full logs are written per-record to `{app.log-dir}/deploy/{recordId}.log` (`./logs/deploy/` locally, `/data/logs/deploy/` in Docker via the existing `logs_data` volume). Safe to clean manually, e.g. `find /data/logs/deploy -name "*.log" -mtime +30 -delete`. `deploy_records.logs` in DB holds only the last 200 lines (tail preview); `GET /deploy-tasks/{id}` serves the full file automatically.
 - **Console WebSocket keepalive**: backend `DeployLogWebSocketHandler` sends an app-level heartbeat (`__light_deploy_heartbeat__`) every 25s so idle slow builds aren't killed by proxy timeouts; frontend filters it and auto-reconnects with exponential backoff (2s→30s cap) until the task ends, backfilling missed lines from the log file. Production Nginx **must** still raise WS timeouts, otherwise the 60s default `proxy_read_timeout` will cut idle streams (heartbeat + reconnect are the safety net, not a substitute):
 

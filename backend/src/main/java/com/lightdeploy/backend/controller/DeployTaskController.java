@@ -235,8 +235,8 @@ public class DeployTaskController {
         record.setUpdatedAt(LocalDateTime.now());
         deployRecordService.save(record);
 
-        // 3. Trigger execution asynchronously
-        deployEngineService.executeDeploy(task, record);
+        // 3. Trigger execution asynchronously (传入触发用户 ID，部署优先使用其 GitLab token)
+        deployEngineService.executeDeploy(task, record, currentUserId);
 
         DeployTaskResponse response = new DeployTaskResponse();
         response.setId(record.getId());

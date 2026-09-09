@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) NOT NULL COMMENT '用户邮箱',
     avatar_url VARCHAR(512) COMMENT '用户头像 URL',
     access_token VARCHAR(512) COMMENT 'GitLab Access Token',
+    refresh_token VARCHAR(512) COMMENT 'GitLab Refresh Token（用于自动刷新过期 Token）',
+    token_expires_at TIMESTAMP NULL COMMENT 'GitLab Access Token 过期时间',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';

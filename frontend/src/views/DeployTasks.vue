@@ -746,17 +746,22 @@ const viewArtifacts = async (row: DeployTask) => {
   }
 }
 
+const getApiBase = () => {
+  const base = import.meta.env.VITE_API_BASE_URL || '/light-deploy/api'
+  return base.replace(/\/$/, '')
+}
+
 const downloadArtifact = (filename: string) => {
   if (!currentRecordId.value) return
   const token = getItem<string>('jwt_token') || ''
-  const url = `/api/deploy-records/${currentRecordId.value}/artifacts/download?filePath=${encodeURIComponent(filename)}&token=${token}`
+  const url = `${getApiBase()}/deploy-records/${currentRecordId.value}/artifacts/download?filePath=${encodeURIComponent(filename)}&token=${token}`
   window.open(url, '_blank')
 }
 
 const downloadAllArtifacts = () => {
   if (!currentRecordId.value) return
   const token = getItem<string>('jwt_token') || ''
-  const url = `/api/deploy-records/${currentRecordId.value}/artifacts/download-all?token=${token}`
+  const url = `${getApiBase()}/deploy-records/${currentRecordId.value}/artifacts/download-all?token=${token}`
   window.open(url, '_blank')
 }
 

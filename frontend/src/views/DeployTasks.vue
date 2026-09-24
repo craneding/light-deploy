@@ -271,7 +271,13 @@
               复制命令
             </el-button>
           </div>
-          <pre class="scp-command">{{ scpCommand }}</pre>
+          <div class="scp-mode">
+            <el-radio-group v-model="scpMode" size="small">
+              <el-radio-button label="plain">普通下载</el-radio-button>
+              <el-radio-button label="compressed">下载并打包</el-radio-button>
+            </el-radio-group>
+          </div>
+          <pre class="scp-command">{{ activeScpCommand }}</pre>
         </div>
 
         <div v-if="artifactFiles.length > 0" class="artifacts-toolbar">
@@ -350,13 +356,19 @@ interface ScpInfo {
 }
 
 const scpInfo = ref<ScpInfo | null>(null)
+const scpMode = ref<'plain' | 'compressed'>('plain')
 const scpCommand = computed(() => {
   if (!scpInfo.value) return ''
   const { host, port, hostDataDir, artifactId } = scpInfo.value
   const remotePath = `${hostDataDir}/artifacts/${artifactId}/`
-  const portFlag = port !== '22' ? ` -P ${port}` : ''
+  const portFlag = String(port) !== '22' ? ` -P ${port}` : ''
   return `scp${portFlag} -r ${host}:${remotePath} .`
 })
+const scpCompressedCommand = computed(() => {
+  if (!scpInfo.value) return ''
+  return `${scpCommand.value} && tar -zcvf ${scpInfo.value.artifactId}.tar.gz ./${scpInfo.value.artifactId}/`
+})
+const activeScpCommand = computed(() => scpMode.value === 'compressed' ? scpCompressedCommand.value : scpCommand.value)
 
 interface TreeNode {
   name: string
@@ -727,6 +739,7 @@ const viewArtifacts = async (row: DeployTask) => {
   artifactsLoading.value = true
   artifactFiles.value = []
   scpInfo.value = null
+  scpMode.value = 'plain'
 
   try {
     const res: any = await request.get(`/deploy-records/${row.id}/artifacts`)
@@ -766,12 +779,12 @@ const downloadAllArtifacts = () => {
 }
 
 const copyScpCommand = async () => {
-  if (!scpCommand.value) {
+  if (!activeScpCommand.value) {
     ElMessage.warning('暂无可复制的命令')
     return
   }
   try {
-    await copyText(scpCommand.value)
+    await copyText(activeScpCommand.value)
     ElMessage.success('SCP 命令已复制到剪贴板')
   } catch (error: any) {
     ElMessage.error(error?.message || '复制失败')
@@ -1024,6 +1037,10 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.scp-mode {
+  margin-bottom: 10px;
 }
 
 .scp-command {

@@ -21,7 +21,16 @@
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
-        <el-button @click="loadTasks" :loading="loading" class="action-btn">
+        <div class="auto-refresh-panel" :class="{ 'is-active': polling }">
+          <el-switch v-model="autoRefresh" size="small" />
+          <div class="auto-refresh-meta">
+            <span class="auto-refresh-title">
+              <span v-if="polling" class="pulse-dot"></span>自动刷新
+            </span>
+            <span class="auto-refresh-time">{{ lastUpdated ? `最后更新 ${lastUpdated}` : '尚未更新' }}</span>
+          </div>
+        </div>
+        <el-button @click="loadTasks()" :loading="loading" class="action-btn">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
         <el-button type="primary" @click="handleCreate" class="action-btn">
@@ -108,7 +117,7 @@
               <el-button v-if="scope.row.status === 'FAILED'" size="small" type="danger" plain @click="viewErrorLogs(scope.row)" class="row-btn">
                 错误
               </el-button>
-              <el-button v-if="scope.row.status === 'RUNNING'" size="small" type="danger" plain @click="handleStop(scope.row)" class="row-btn">
+              <el-button v-if="isRunningStatus(scope.row.status)" size="small" type="danger" plain @click="handleStop(scope.row)" class="row-btn">
                 停止
               </el-button>
             </div>
@@ -328,7 +337,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, Document, Search, FolderOpened, CopyDocument, Refresh, DocumentCopy, User, Download } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -338,6 +347,7 @@ import { getItem } from '../utils/storage'
 import { copyText } from '../utils/clipboard'
 import { fetchTasks, createTask, stopTask, type DeployTask } from '../api/task'
 import { fetchGitlabBranches, fetchGitlabTags, fetchGitlabCommits } from '../api/gitlab'
+import { useAutoRefresh } from '../composables/useAutoRefresh'
 
 const router = useRouter()
 
@@ -408,9 +418,27 @@ const submitting = ref(false)
 const formRef = ref<FormInstance>()
 
 const searchQuery = ref('')
+/** 已提交的搜索词：自动刷新沿用上次搜索条件，避免用户输入未回车时列表被提前过滤 */
+const appliedSearch = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
+
+/** 当前页是否存在未完成任务：决定是否启动 3s 自动刷新 */
+const hasActiveTasks = computed(() =>
+  taskList.value.some(task => {
+    const status = task.status?.toUpperCase()
+    return status === 'PENDING' || status === 'RUNNING'
+  })
+)
+
+// 自动刷新：有活跃任务时每 3s 静默拉取列表，全部结束后自动停止
+const autoRefresh = ref(true)
+const { lastUpdated, polling, markUpdated } = useAutoRefresh(
+  () => hasActiveTasks.value,
+  () => loadTasks(true),
+  autoRefresh
+)
 
 const projectList = ref<any[]>([])
 const profileList = ref<any[]>([])
@@ -455,11 +483,16 @@ const getStatusText = (status?: string) => {
   }
 }
 
+const isRunningStatus = (status?: string) => status?.toUpperCase() === 'RUNNING'
+
+const now = ref(Date.now())
+
 const calculateDuration = (startTime?: string, endTime?: string) => {
   if (!startTime) return '-'
   
   const start = new Date(startTime).getTime()
-  const end = endTime ? new Date(endTime).getTime() : new Date().getTime()
+  // 运行中的任务用实时时钟，避免耗时显示冻结
+  const end = endTime ? new Date(endTime).getTime() : now.value
   
   if (isNaN(start) || isNaN(end)) return '-'
   
@@ -483,11 +516,11 @@ const calculateDuration = (startTime?: string, endTime?: string) => {
   return `${hours}时${remainingMinutes}分`
 }
 
-const loadTasks = async () => {
-  loading.value = true
+const loadTasks = async (silent = false): Promise<boolean> => {
+  if (!silent) loading.value = true
   try {
     const res: any = await fetchTasks({
-      search: searchQuery.value,
+      search: appliedSearch.value,
       page: currentPage.value,
       size: pageSize.value
     })
@@ -501,14 +534,45 @@ const loadTasks = async () => {
       taskList.value = Array.isArray(res) ? res : (res.data || [])
       total.value = taskList.value.length
     }
+    markUpdated()
+    return true
   } catch (error: any) {
-    ElMessage.error(error.message || '获取任务列表失败')
+    // 静默刷新不弹提示，避免轮询失败时刷屏（拦截器已负责错误提示）
+    if (!silent) {
+      ElMessage.error(error.message || '获取任务列表失败')
+    }
+    return false
   } finally {
-    loading.value = false
+    if (!silent) loading.value = false
   }
 }
 
+// 运行中的任务每秒推进一次「耗时」显示，避免只刷新状态时数字冻结
+let durationTimer: ReturnType<typeof setInterval> | null = null
+
+watch(hasActiveTasks, (active) => {
+  if (active) {
+    if (!durationTimer) {
+      now.value = Date.now()
+      durationTimer = setInterval(() => {
+        now.value = Date.now()
+      }, 1000)
+    }
+  } else if (durationTimer) {
+    clearInterval(durationTimer)
+    durationTimer = null
+  }
+}, { immediate: true })
+
+onUnmounted(() => {
+  if (durationTimer) {
+    clearInterval(durationTimer)
+    durationTimer = null
+  }
+})
+
 const handleSearch = () => {
+  appliedSearch.value = searchQuery.value
   currentPage.value = 1
   loadTasks()
 }
@@ -814,6 +878,8 @@ onMounted(() => {
   display: flex;
   gap: 12px;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .search-input {

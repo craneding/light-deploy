@@ -134,9 +134,20 @@
           <template #header>
             <div class="card-header-inner">
               <span class="card-header-title">最近部署动态</span>
-              <el-button link type="primary" @click="goToTasks" class="view-all-link">
-                查看全部任务 <el-icon><ArrowRight /></el-icon>
-              </el-button>
+              <div class="card-header-actions">
+                <div class="auto-refresh-panel" :class="{ 'is-active': polling }">
+                  <el-switch v-model="autoRefresh" size="small" />
+                  <div class="auto-refresh-meta">
+                    <span class="auto-refresh-title">
+                      <span v-if="polling" class="pulse-dot"></span>自动刷新
+                    </span>
+                    <span class="auto-refresh-time">{{ lastUpdated ? `最后更新 ${lastUpdated}` : '尚未更新' }}</span>
+                  </div>
+                </div>
+                <el-button link type="primary" @click="goToTasks" class="view-all-link">
+                  查看全部任务 <el-icon><ArrowRight /></el-icon>
+                </el-button>
+              </div>
             </div>
           </template>
 
@@ -201,6 +212,7 @@ import { ref, computed, onMounted } from 'vue'
 import { DataAnalysis, Monitor, Folder, DocumentCopy, ArrowRight, Plus } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import request from '../utils/request'
+import { useAutoRefresh } from '../composables/useAutoRefresh'
 
 const router = useRouter()
 const loading = ref(false)
@@ -220,15 +232,34 @@ const successRate = computed(() => {
   return rate % 1 === 0 ? rate : rate.toFixed(1)
 })
 
-const fetchStats = async () => {
-  loading.value = true
+/** 是否存在未完成任务：决定是否启动 3s 自动刷新 */
+const hasActiveTasks = computed(() => {
+  if (stats.value.runningTasks > 0) return true
+  return stats.value.recentTasks.some((task: any) => {
+    const status = String(task.status || '').toUpperCase()
+    return status === 'RUNNING' || status === 'PENDING'
+  })
+})
+
+const autoRefresh = ref(true)
+const { lastUpdated, polling, markUpdated } = useAutoRefresh(
+  () => hasActiveTasks.value,
+  () => fetchStats(true),
+  autoRefresh
+)
+
+const fetchStats = async (silent = false): Promise<boolean> => {
+  if (!silent) loading.value = true
   try {
     const data = await request.get('/dashboard/stats')
     stats.value = data as any
+    markUpdated()
+    return true
   } catch (error) {
     console.error('Failed to fetch stats:', error)
+    return false
   } finally {
-    loading.value = false
+    if (!silent) loading.value = false
   }
 }
 
@@ -406,6 +437,13 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+}
+
+.card-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
 .card-header-title {

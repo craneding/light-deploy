@@ -288,6 +288,48 @@ code, pre, .font-mono {
   }
 }
 
+/* 自动刷新控制（部署任务列表 / 概览看板共用） */
+.auto-refresh-panel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.auto-refresh-panel.is-active {
+  border-color: #c7d2fe;
+  background: #eef2ff;
+}
+
+.auto-refresh-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.auto-refresh-title {
+  display: flex;
+  align-items: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.auto-refresh-panel.is-active .auto-refresh-title {
+  color: #4338ca;
+}
+
+.auto-refresh-time {
+  font-size: 11px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
 /* Pagination container utility */
 .pagination-wrapper {
   display: flex;

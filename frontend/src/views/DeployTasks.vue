@@ -11,7 +11,7 @@
       <div class="header-actions">
         <el-input
           v-model="searchQuery"
-          placeholder="搜索项目名称、分支、Commit..."
+          placeholder="搜索项目名称、环境、分支、Commit..."
           class="search-input"
           clearable
           @keyup.enter="handleSearch"
@@ -148,6 +148,7 @@
             v-model="form.projectId"
             placeholder="请选择要部署的项目"
             style="width: 100%"
+            filterable
             @change="handleProjectChange"
           >
             <el-option
@@ -815,7 +816,7 @@ onMounted(() => {
 }
 
 .search-input {
-  width: 280px;
+  width: 320px;
 }
 
 .table-container {

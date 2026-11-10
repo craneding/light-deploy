@@ -65,21 +65,43 @@ public class DeployTaskController {
         query.orderByDesc("created_at");
         
         if (search != null && !search.trim().isEmpty()) {
+            // 搜索项目名称、环境名称（Profile）、分支、Commit
+            String keyword = search.trim();
+
             // Find projects that match search
-            List<Project> projects = projectService.list(new QueryWrapper<Project>().like("name", search));
-            List<Integer> projectIds = projects.stream().map(Project::getId).collect(Collectors.toList());
-            
-            if (!projectIds.isEmpty()) {
-                // Find tasks for these projects
-                List<DeployTask> tasks = deployTaskService.list(new QueryWrapper<DeployTask>().in("project_id", projectIds));
-                List<Integer> taskIds = tasks.stream().map(DeployTask::getId).collect(Collectors.toList());
-                if (!taskIds.isEmpty()) {
-                    query.and(q -> q.in("task_id", taskIds).or().like("branch", search).or().like("commit_id", search));
-                } else {
-                    query.and(q -> q.like("branch", search).or().like("commit_id", search));
-                }
+            List<Integer> projectIds = projectService.list(
+                            new QueryWrapper<Project>().select("id").like("name", keyword))
+                    .stream().map(Project::getId).collect(Collectors.toList());
+
+            // Find deploy profiles (environments) that match search
+            List<Integer> profileIds = deployProfileService.list(
+                            new QueryWrapper<DeployProfile>().select("id").like("name", keyword))
+                    .stream().map(DeployProfile::getId).collect(Collectors.toList());
+
+            // Find tasks belonging to matched projects or environments
+            List<Integer> taskIds = new ArrayList<>();
+            if (!projectIds.isEmpty() || !profileIds.isEmpty()) {
+                QueryWrapper<DeployTask> taskQuery = new QueryWrapper<>();
+                taskQuery.and(q -> {
+                    if (!projectIds.isEmpty()) {
+                        q.in("project_id", projectIds);
+                    }
+                    if (!profileIds.isEmpty()) {
+                        if (!projectIds.isEmpty()) {
+                            q.or();
+                        }
+                        q.in("profile_id", profileIds);
+                    }
+                });
+                taskIds = deployTaskService.list(taskQuery).stream()
+                        .map(DeployTask::getId).collect(Collectors.toList());
+            }
+
+            if (!taskIds.isEmpty()) {
+                List<Integer> matchedTaskIds = taskIds;
+                query.and(q -> q.in("task_id", matchedTaskIds).or().like("branch", keyword).or().like("commit_id", keyword));
             } else {
-                query.and(q -> q.like("branch", search).or().like("commit_id", search));
+                query.and(q -> q.like("branch", keyword).or().like("commit_id", keyword));
             }
         }
 

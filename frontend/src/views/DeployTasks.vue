@@ -167,6 +167,7 @@
             style="width: 100%"
             :loading="profileLoading"
             :disabled="!form.projectId"
+            filterable
             @change="handleProfileChange"
           >
             <el-option
